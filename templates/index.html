@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats bar -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+      <i class="fas fa-robot"></i>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.total_models }}</div>
+      <div class="stat-label">Total Models</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+      <i class="fas fa-circle-check"></i>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.ready_models }}</div>
+      <div class="stat-label">Ready to Use</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+      <i class="fas fa-spinner"></i>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.training_models }}</div>
+      <div class="stat-label">Training Now</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+      <i class="fas fa-database"></i>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.total_datasets }}</div>
+      <div class="stat-label">Datasets</div>
+    </div>
+  </div>
+</div>
+
+<!-- Hero / CTA if no models yet -->
+{% if stats.total_models == 0 %}
+<div class="hero-card">
+  <div class="hero-emoji">🧠</div>
+  <h1 class="hero-title">Welcome to OwnAI</h1>
+  <p class="hero-subtitle">
+    The all-in-one platform to design, train, and run your own AI — from chatbots to image generators,
+    trading bots, medical detection AI, and more. No PhD required.
+  </p>
+  <a href="{{ url_for('builder_page') }}" class="btn btn-primary btn-lg">
+    <i class="fas fa-wand-magic-sparkles"></i> Build Your First AI
+  </a>
+</div>
+{% endif %}
+
+<!-- Quick action tiles -->
+<div class="section-header">
+  <h2>AI Types You Can Build</h2>
+  <a href="{{ url_for('builder_page') }}" class="btn btn-outline btn-sm">Build One →</a>
+</div>
+<div class="ai-type-grid">
+  {% for key, at in ai_types.items() %}
+  <a href="{{ url_for('builder_page') }}#type-{{ key }}" class="ai-type-card" style="--card-color: {{ at.color }};">
+    <div class="ai-type-icon">{{ at.icon }}</div>
+    <div class="ai-type-label">{{ at.label }}</div>
+    <div class="ai-type-desc">{{ at.description }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Recent models -->
+{% if models %}
+<div class="section-header" style="margin-top:2rem;">
+  <h2>Your Models</h2>
+  <a href="{{ url_for('models_page') }}" class="btn btn-outline btn-sm">View All →</a>
+</div>
+<div class="model-list">
+  {% for model in models[:6] %}
+  <div class="model-card">
+    <div class="model-card-header">
+      <span class="model-icon" style="background: {{ model.to_dict().color }}20; color: {{ model.to_dict().color }};">
+        {{ model.to_dict().icon }}
+      </span>
+      <div class="model-info">
+        <div class="model-name">{{ model.name }}</div>
+        <div class="model-type">{{ ai_types.get(model.ai_type, {}).get('label', model.ai_type) }}</div>
+      </div>
+      <span class="status-badge status-{{ model.status }}">{{ model.status }}</span>
+    </div>
+    <div class="model-card-actions">
+      {% if model.status == 'ready' %}
+      <a href="{{ url_for('run_page', model_id=model.id) }}" class="btn btn-primary btn-xs">
+        <i class="fas fa-play"></i> Run
+      </a>
+      {% endif %}
+      <a href="{{ url_for('train_page', model_id=model.id) }}" class="btn btn-outline btn-xs">
+        <i class="fas fa-graduation-cap"></i> Train
+      </a>
+      <button class="btn btn-danger btn-xs" onclick="deleteModel({{ model.id }}, '{{ model.name }}')">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

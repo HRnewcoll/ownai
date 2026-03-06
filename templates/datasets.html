@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}Datasets{% endblock %}
+{% block page_title %}Datasets{% endblock %}
+
+{% block head_extra %}
+<style>
+.dataset-upload-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:1.25rem; margin-bottom:2rem; }
+.upload-card { background:var(--surface); border:2px dashed var(--border); border-radius:16px; padding:1.5rem; text-align:center; cursor:pointer; transition:all .2s; }
+.upload-card:hover { border-color:var(--primary); background:var(--primary)08; }
+.upload-card .upload-icon { font-size:2.5rem; margin-bottom:.75rem; }
+.upload-card h3 { margin:0 0 .5rem; }
+.upload-card p { font-size:.85rem; color:var(--muted); margin:0 0 1rem; }
+.dataset-table { width:100%; border-collapse:collapse; }
+.dataset-table th { text-align:left; padding:.75rem 1rem; font-size:.8rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); border-bottom:2px solid var(--border); }
+.dataset-table td { padding:.75rem 1rem; border-bottom:1px solid var(--border); font-size:.88rem; vertical-align:middle; }
+.dataset-table tr:last-child td { border-bottom:none; }
+.hf-search-wrap { display:flex; gap:.5rem; margin-bottom:1rem; }
+.hf-results { max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:.5rem; }
+.hf-result-item { padding:.75rem 1rem; border-radius:10px; border:1px solid var(--border); background:var(--surface); display:flex; align-items:center; gap:.75rem; }
+.hf-result-item:hover { border-color:var(--primary); }
+.scrape-textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:.75rem; color:var(--text); font-size:.88rem; resize:vertical; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Upload options -->
+<div class="dataset-upload-grid">
+  <!-- File upload -->
+  <div class="upload-card" onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">📁</div>
+    <h3>Upload Files</h3>
+    <p>Upload .txt, .csv, .jsonl, .json, .pdf or image files as training data.</p>
+    <button class="btn btn-primary btn-sm">Choose Files</button>
+    <input type="file" id="fileInput" multiple style="display:none" onchange="uploadFiles(this)">
+  </div>
+
+  <!-- HuggingFace -->
+  <div class="upload-card" onclick="showHFModal()">
+    <div class="upload-icon">🤗</div>
+    <h3>HuggingFace Dataset</h3>
+    <p>Search and link any public dataset from the HuggingFace Hub.</p>
+    <button class="btn btn-primary btn-sm">Browse Hub</button>
+  </div>
+
+  <!-- Web scrape -->
+  <div class="upload-card" onclick="showScrapeModal()">
+    <div class="upload-icon">🌐</div>
+    <h3>Scrape Web Pages</h3>
+    <p>Extract text from websites and web pages to create training data.</p>
+    <button class="btn btn-primary btn-sm">Add URLs</button>
+  </div>
+</div>
+
+<!-- Upload progress -->
+<div id="uploadProgress" style="display:none; margin-bottom:1rem;">
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="uploadBar" style="width:0%"></div></div>
+  <div id="uploadStatus" style="font-size:.85rem; color:var(--muted); margin-top:.25rem;"></div>
+</div>
+
+<!-- Dataset list -->
+<div class="card">
+  <div class="card-header"><h2><i class="fas fa-database"></i> Your Datasets</h2></div>
+  <div class="card-body" style="padding:0;">
+    {% if datasets %}
+    <table class="dataset-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Source</th>
+          <th>Size</th>
+          <th>Added</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="datasetTableBody">
+        {% for ds in datasets %}
+        <tr id="ds{{ ds.id }}">
+          <td><strong>{{ ds.name }}</strong>{% if ds.hf_id %}<br><span style="font-size:.75rem;color:var(--muted);">{{ ds.hf_id }}</span>{% endif %}</td>
+          <td><span class="badge badge-{{ 'blue' if ds.source == 'hf' else 'green' if ds.source == 'web' else 'gray' }}">{{ ds.source }}</span></td>
+          <td>{% if ds.size_bytes > 1048576 %}{{ (ds.size_bytes/1048576)|round(1) }} MB{% elif ds.size_bytes > 1024 %}{{ (ds.size_bytes/1024)|round(1) }} KB{% else %}{{ ds.size_bytes }} B{% endif %}</td>
+          <td>{{ ds.created_at.strftime('%d %b %Y') if ds.created_at else '—' }}</td>
+          <td>
+            <button class="btn btn-danger btn-xs" onclick="deleteDataset({{ ds.id }}, '{{ ds.name }}')">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state" style="padding:2rem;">
+      <div class="empty-icon">📭</div>
+      <p class="text-muted">No datasets yet. Add one above to get started.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- HF Modal -->
+<div class="modal" id="hfModal" style="display:none;">
+  <div class="modal-backdrop" onclick="closeModal('hfModal')"></div>
+  <div class="modal-box" style="max-width:600px;width:95%;">
+    <div class="modal-header">
+      <h3>🤗 HuggingFace Dataset Search</h3>
+      <button onclick="closeModal('hfModal')" class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="hf-search-wrap">
+        <input type="text" id="hfQuery" class="form-input" placeholder="Search datasets… e.g. alpaca, gsm8k, squad" style="flex:1;">
+        <button class="btn btn-primary" onclick="searchHF()">Search</button>
+      </div>
+      <div class="hf-results" id="hfResults">
+        <p style="color:var(--muted);font-size:.88rem;">Type a query to search the HuggingFace Hub.</p>
+      </div>
+      <div style="margin-top:1rem; border-top:1px solid var(--border); padding-top:1rem;">
+        <p style="font-size:.88rem;color:var(--muted);">Or enter a dataset ID directly:</p>
+        <div style="display:flex;gap:.5rem;">
+          <input type="text" id="hfDirectId" class="form-input" placeholder="e.g. tatsu-lab/alpaca" style="flex:1;">
+          <button class="btn btn-success" onclick="addHFDirect()">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scrape Modal -->
+<div class="modal" id="scrapeModal" style="display:none;">
+  <div class="modal-backdrop" onclick="closeModal('scrapeModal')"></div>
+  <div class="modal-box" style="max-width:560px;width:95%;">
+    <div class="modal-header">
+      <h3>🌐 Scrape Web Pages</h3>
+      <button onclick="closeModal('scrapeModal')" class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Dataset Name</label>
+        <input type="text" id="scrapeName" class="form-input" placeholder="e.g. my-web-data">
+      </div>
+      <div class="form-group">
+        <label class="form-label">URLs (one per line)</label>
+        <textarea id="scrapeUrls" class="scrape-textarea" rows="6" placeholder="https://example.com/article&#10;https://docs.mysite.com/page"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="startScrape()" style="width:100%;">
+        <i class="fas fa-download"></i> Scrape & Save
+      </button>
+      <div id="scrapeStatus" style="margin-top:.75rem;font-size:.88rem;color:var(--muted);"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function showHFModal() { document.getElementById('hfModal').style.display = 'flex'; }
+function showScrapeModal() { document.getElementById('scrapeModal').style.display = 'flex'; }
+
+function uploadFiles(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  document.getElementById('uploadProgress').style.display = 'block';
+  let done = 0;
+  files.forEach(file => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', file.name);
+    document.getElementById('uploadStatus').textContent = `Uploading ${file.name}…`;
+    fetch('/api/datasets', {method:'POST', body:fd})
+      .then(r => r.json())
+      .then(d => {
+        done++;
+        document.getElementById('uploadBar').style.width = (done/files.length*100) + '%';
+        if (d.success) addDatasetRow(d.dataset);
+        if (done === files.length) {
+          document.getElementById('uploadStatus').textContent = `✅ ${done} file(s) uploaded!`;
+          setTimeout(() => document.getElementById('uploadProgress').style.display = 'none', 2000);
+        }
+      });
+  });
+}
+
+function addDatasetRow(ds) {
+  const tbody = document.getElementById('datasetTableBody') || createTableIfNeeded();
+  if (!tbody) return location.reload();
+  const tr = document.createElement('tr');
+  tr.id = `ds${ds.id}`;
+  const sz = ds.size_bytes > 1048576 ? `${(ds.size_bytes/1048576).toFixed(1)} MB`
+           : ds.size_bytes > 1024 ? `${(ds.size_bytes/1024).toFixed(1)} KB`
+           : `${ds.size_bytes} B`;
+  tr.innerHTML = `
+    <td><strong>${ds.name}</strong></td>
+    <td><span class="badge badge-gray">${ds.source}</span></td>
+    <td>${sz}</td>
+    <td>Just now</td>
+    <td><button class="btn btn-danger btn-xs" onclick="deleteDataset(${ds.id}, '${ds.name}')"><i class="fas fa-trash"></i></button></td>
+  `;
+  tbody.prepend(tr);
+}
+
+function deleteDataset(id, name) {
+  if (!confirm(`Delete dataset "${name}"?`)) return;
+  fetch(`/api/datasets/${id}`, {method:'DELETE'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        const row = document.getElementById(`ds${id}`);
+        if (row) row.remove();
+      }
+    });
+}
+
+function searchHF() {
+  const q = document.getElementById('hfQuery').value.trim();
+  if (!q) return;
+  document.getElementById('hfResults').innerHTML = '<p style="color:var(--muted);">Searching…</p>';
+  fetch(`/api/datasets/hf/search?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.results.length) {
+        document.getElementById('hfResults').innerHTML = '<p style="color:var(--muted);">No results found.</p>';
+        return;
+      }
+      document.getElementById('hfResults').innerHTML = d.results.map(r => `
+        <div class="hf-result-item">
+          <div style="flex:1;">
+            <strong>${r.name}</strong>
+            <div style="font-size:.78rem;color:var(--muted);">⬇ ${r.downloads} downloads · ♥ ${r.likes} likes</div>
+          </div>
+          <button class="btn btn-primary btn-xs" onclick="addHFDataset('${r.id}')">Add</button>
+        </div>
+      `).join('');
+    });
+}
+
+function addHFDataset(id) {
+  fetch('/api/datasets/hf/add', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({hf_id: id}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      addDatasetRow(d.dataset);
+      closeModal('hfModal');
+    }
+  });
+}
+
+function addHFDirect() {
+  const id = document.getElementById('hfDirectId').value.trim();
+  if (id) addHFDataset(id);
+}
+
+function startScrape() {
+  const name = document.getElementById('scrapeName').value.trim() || 'web_dataset';
+  const urls = document.getElementById('scrapeUrls').value.trim().split('\n').filter(u => u.trim());
+  if (!urls.length) { alert('Please enter at least one URL.'); return; }
+  document.getElementById('scrapeStatus').textContent = 'Scraping pages… (this may take a moment)';
+  fetch('/api/datasets/web/scrape', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({urls, name}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      document.getElementById('scrapeStatus').textContent =
+        `✅ Scraped ${d.pages_scraped} pages, ${d.total_chars.toLocaleString()} characters saved!`;
+      addDatasetRow(d.dataset);
+      setTimeout(() => closeModal('scrapeModal'), 2000);
+    } else {
+      document.getElementById('scrapeStatus').textContent = `❌ ${d.error}`;
+    }
+  });
+}
+</script>
+{% endblock %}

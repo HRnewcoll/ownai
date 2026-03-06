@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}My Models{% endblock %}
+{% block page_title %}My Models{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+  <a href="{{ url_for('builder_page') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> New Model
+  </a>
+</div>
+
+{% if models %}
+<div class="model-list-full">
+  {% for model in models %}
+  <div class="model-card-full" id="modelCard{{ model.id }}">
+    <div class="mcf-left">
+      <span class="model-icon-lg" style="background:{{ model.to_dict().color }}20;color:{{ model.to_dict().color }};">
+        {{ model.to_dict().icon }}
+      </span>
+    </div>
+    <div class="mcf-body">
+      <div class="mcf-row">
+        <h3 class="mcf-name">{{ model.name }}</h3>
+        <span class="status-badge status-{{ model.status }}">{{ model.status }}</span>
+      </div>
+      <div class="mcf-meta">
+        <span><i class="fas fa-layer-group"></i> {{ ai_types.get(model.ai_type, {}).get('label', model.ai_type) }}</span>
+        <span><i class="fas fa-microchip"></i> {{ model.config.get('base_model','?') }}</span>
+        <span><i class="fas fa-calendar"></i> {{ model.created_at.strftime('%d %b %Y') if model.created_at else '—' }}</span>
+      </div>
+      {% if model.config.get('capabilities') %}
+      <div class="mcf-caps">
+        {% for cap in model.config.capabilities %}
+        <span class="cap-tag">{{ cap }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="mcf-actions">
+      {% if model.status == 'ready' %}
+      <a href="{{ url_for('run_page', model_id=model.id) }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-play"></i> Run
+      </a>
+      {% endif %}
+      <a href="{{ url_for('train_page', model_id=model.id) }}" class="btn btn-outline btn-sm">
+        <i class="fas fa-graduation-cap"></i> Train
+      </a>
+      <a href="{{ url_for('builder_edit', model_id=model.id) }}" class="btn btn-outline btn-sm">
+        <i class="fas fa-pen"></i> Edit
+      </a>
+      <button class="btn btn-danger btn-sm" onclick="deleteModel({{ model.id }}, '{{ model.name }}')">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🤖</div>
+  <h2>No models yet</h2>
+  <p class="text-muted">Build your first AI model to get started.</p>
+  <a href="{{ url_for('builder_page') }}" class="btn btn-primary">
+    <i class="fas fa-wand-magic-sparkles"></i> Build My First AI
+  </a>
+</div>
+{% endif %}
+{% endblock %}
