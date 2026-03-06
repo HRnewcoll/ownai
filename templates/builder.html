@@ -4,39 +4,81 @@
 
 {% block head_extra %}
 <style>
-.wizard-steps { display:flex; gap:.5rem; margin-bottom:2rem; flex-wrap:wrap; }
-.wizard-step { flex:1; min-width:120px; padding:.75rem 1rem; border-radius:12px; border:2px solid var(--border); background:var(--surface); text-align:center; cursor:pointer; transition:all .2s; font-size:.85rem; font-weight:500; }
+/* ── Wizard chrome ── */
+.wizard-steps { display:flex; gap:.4rem; margin-bottom:2rem; flex-wrap:wrap; }
+.wizard-step  { flex:1; min-width:110px; padding:.65rem .75rem; border-radius:12px; border:2px solid var(--border); background:var(--surface); text-align:center; cursor:pointer; transition:all .2s; font-size:.8rem; font-weight:500; white-space:nowrap; }
 .wizard-step.active { border-color:var(--primary); background:var(--primary)15; color:var(--primary); }
-.wizard-step.done { border-color:var(--success); color:var(--success); }
+.wizard-step.done   { border-color:var(--success); color:var(--success); }
 .wizard-panel { display:none; } .wizard-panel.active { display:block; }
-.type-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:1rem; }
-.type-option { padding:1.25rem; border-radius:16px; border:2px solid var(--border); background:var(--surface); cursor:pointer; transition:all .2s; position:relative; }
+
+/* ── Category filter bar ── */
+.cat-filter { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.cat-btn { padding:.4rem .9rem; border-radius:999px; border:2px solid var(--border); background:var(--surface); cursor:pointer; font-size:.8rem; font-weight:500; transition:all .15s; white-space:nowrap; }
+.cat-btn:hover  { border-color:var(--primary)88; }
+.cat-btn.active { border-color:var(--primary); background:var(--primary)15; color:var(--primary); }
+.cat-count { display:inline-block; margin-left:.3rem; background:var(--primary)22; color:var(--primary); border-radius:999px; padding:.05rem .4rem; font-size:.72rem; font-weight:700; }
+
+/* ── Type search box ── */
+.type-search-wrap { position:relative; margin-bottom:1rem; }
+.type-search-wrap .fas { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.type-search { width:100%; padding:.65rem 1rem .65rem 2.5rem; border-radius:10px; border:2px solid var(--border); background:var(--surface); color:var(--text); font-size:.9rem; outline:none; transition:border-color .2s; }
+.type-search:focus { border-color:var(--primary); }
+
+/* ── Type grid ── */
+.type-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:.85rem; }
+.type-option { padding:1.1rem; border-radius:14px; border:2px solid var(--border); background:var(--surface); cursor:pointer; transition:all .18s; position:relative; }
 .type-option:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.15); }
-.type-option.selected { border-color:var(--card-color,var(--primary)); box-shadow:0 0 0 4px var(--card-color,var(--primary))22; }
+.type-option.selected { border-color:var(--card-color,var(--primary)); box-shadow:0 0 0 4px var(--card-color,var(--primary))20; }
+.type-option.hidden  { display:none; }
 .type-option input[type=radio] { position:absolute; opacity:0; }
-.type-option .type-icon { font-size:2.5rem; margin-bottom:.5rem; }
-.type-option .type-label { font-weight:600; margin-bottom:.25rem; }
-.type-option .type-desc { font-size:.8rem; color:var(--muted); line-height:1.4; }
+.type-icon  { font-size:2rem; margin-bottom:.4rem; }
+.type-label { font-weight:600; margin-bottom:.2rem; font-size:.9rem; }
+.type-desc  { font-size:.76rem; color:var(--muted); line-height:1.35; margin-bottom:.4rem; }
+.type-examples { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.4rem; }
+.type-example-tag { font-size:.68rem; padding:.15rem .45rem; border-radius:999px; background:var(--card-color,var(--primary))18; color:var(--card-color,var(--primary)); font-weight:500; }
+.no-results { grid-column:1/-1; text-align:center; padding:2rem; color:var(--muted); }
+
+/* ── Custom niche input ── */
+.niche-input-wrap { display:none; margin-top:1rem; }
+.niche-input-wrap.visible { display:block; }
+.niche-textarea { width:100%; padding:.75rem 1rem; border-radius:10px; border:2px solid var(--primary); background:var(--surface); color:var(--text); font-size:.9rem; resize:vertical; outline:none; transition:border-color .2s; }
+.niche-textarea:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary)20; }
+.niche-suggest { margin-top:.5rem; font-size:.78rem; color:var(--muted); }
+.niche-suggest b { color:var(--primary); cursor:pointer; }
+
+/* ── Capabilities / model list ── */
 .cap-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:.75rem; }
 .cap-option { padding:1rem; border-radius:12px; border:2px solid var(--border); background:var(--surface); cursor:pointer; display:flex; gap:.75rem; align-items:flex-start; transition:all .2s; }
 .cap-option:hover { border-color:var(--primary)88; }
 .cap-option.selected { border-color:var(--primary); background:var(--primary)10; }
 .cap-option input[type=checkbox] { margin-top:2px; accent-color:var(--primary); }
 .cap-icon { font-size:1.5rem; min-width:2rem; }
-.model-select-list { display:flex; flex-direction:column; gap:.5rem; max-height:320px; overflow-y:auto; }
+
+.model-select-list { display:flex; flex-direction:column; gap:.5rem; max-height:360px; overflow-y:auto; }
 .model-option { padding:.875rem 1rem; border-radius:10px; border:2px solid var(--border); background:var(--surface); cursor:pointer; display:flex; align-items:center; gap:1rem; transition:all .2s; }
 .model-option:hover { border-color:var(--primary)88; }
 .model-option.selected { border-color:var(--primary); }
 .model-option input { accent-color:var(--primary); }
 .model-size-badge { margin-left:auto; padding:.2rem .6rem; background:var(--primary)20; color:var(--primary); border-radius:999px; font-size:.75rem; font-weight:600; }
+
+/* ── Training form ── */
 .form-range-wrap { display:flex; gap:1rem; align-items:center; }
 .form-range-wrap input[type=range] { flex:1; accent-color:var(--primary); }
 .form-range-val { font-weight:600; min-width:50px; text-align:right; color:var(--primary); }
-.policy-options { display:flex; gap:1rem; }
-.policy-opt { flex:1; padding:1.25rem; border-radius:12px; border:2px solid var(--border); background:var(--surface); cursor:pointer; text-align:center; transition:all .2s; }
+
+/* ── Policy + agentic ── */
+.policy-options { display:flex; gap:1rem; flex-wrap:wrap; }
+.policy-opt { flex:1; min-width:180px; padding:1.25rem; border-radius:12px; border:2px solid var(--border); background:var(--surface); cursor:pointer; text-align:center; transition:all .2s; }
 .policy-opt:hover { border-color:var(--primary)88; }
 .policy-opt.selected { border-color:var(--primary); }
 .policy-opt .policy-icon { font-size:2rem; margin-bottom:.5rem; }
+
+/* ── Review grid ── */
+.review-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem 1.5rem; }
+.review-item { display:flex; flex-direction:column; padding:.5rem .75rem; background:var(--surface); border-radius:8px; border:1px solid var(--border); }
+.review-key { font-size:.73rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.review-val { font-weight:600; margin-top:.15rem; word-break:break-all; }
+@media(max-width:540px){ .review-grid{grid-template-columns:1fr;} }
 </style>
 {% endblock %}
 
@@ -53,27 +95,82 @@
   <div class="wizard-step" data-step="6">6. Review</div>
 </div>
 
-<!-- Step 1: AI Type -->
+<!-- ═══ Step 1: AI Type ═══ -->
 <div class="wizard-panel active card" id="step1">
   <div class="card-header">
     <h2><i class="fas fa-layer-group"></i> What kind of AI do you want to build?</h2>
-    <p class="text-muted">Select a category — you can customise everything in the following steps.</p>
+    <p class="text-muted">Search or filter by category — any niche is supported.</p>
   </div>
   <div class="card-body">
-    <div class="type-grid">
+
+    <!-- Search bar -->
+    <div class="type-search-wrap">
+      <i class="fas fa-search"></i>
+      <input class="type-search" id="typeSearch" type="text" placeholder="Search AI types… e.g. trading, medical, voice, fraud…" oninput="filterTypes()">
+    </div>
+
+    <!-- Category filter tabs -->
+    <div class="cat-filter" id="catFilter">
+      <button type="button" class="cat-btn active" data-cat="all" onclick="setCat('all',this)">
+        All <span class="cat-count" id="cnt-all">{{ ai_types|length }}</span>
+      </button>
+      {% for cat_key, cat in ai_categories.items() %}
+      <button type="button" class="cat-btn" data-cat="{{ cat_key }}" onclick="setCat('{{ cat_key }}',this)">
+        {{ cat.icon }} {{ cat.label }}
+        <span class="cat-count" id="cnt-{{ cat_key }}">
+          {{ ai_types.values()|selectattr('category','equalto',cat_key)|list|length }}
+        </span>
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Type cards grid -->
+    <div class="type-grid" id="typeGrid">
       {% for key, at in ai_types.items() %}
-      <label class="type-option" style="--card-color: {{ at.color }};" id="type-{{ key }}">
-        <input type="radio" name="ai_type" value="{{ key }}" {% if key == 'chatbot' %}checked{% endif %} onchange="onTypeChange('{{ key }}')">
+      <label class="type-option"
+             style="--card-color: {{ at.color }};"
+             id="type-{{ key }}"
+             data-cat="{{ at.get('category','custom') }}"
+             data-label="{{ at.label|lower }}"
+             data-desc="{{ at.description|lower }}"
+             data-examples="{{ (at.get('example_use_cases',[])|join(' '))|lower }}">
+        <input type="radio" name="ai_type" value="{{ key }}"
+               {% if key == 'chatbot' %}checked{% endif %}
+               onchange="onTypeChange('{{ key }}')">
         <div class="type-icon">{{ at.icon }}</div>
         <div class="type-label">{{ at.label }}</div>
         <div class="type-desc">{{ at.description }}</div>
+        {% if at.get('example_use_cases') %}
+        <div class="type-examples">
+          {% for ex in at.example_use_cases[:3] %}
+          <span class="type-example-tag">{{ ex }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
       </label>
       {% endfor %}
+      <div class="no-results" id="noResults" style="display:none;">
+        <i class="fas fa-search" style="font-size:2rem;margin-bottom:.5rem;display:block;"></i>
+        No AI types match "<span id="noResultsQuery"></span>".<br>
+        <small>Use <strong>Custom / My Own Niche</strong> and describe what you want to build.</small>
+      </div>
     </div>
+
+    <!-- Custom niche description (shown when Custom is selected) -->
+    <div class="niche-input-wrap" id="nicheInputWrap">
+      <label style="font-weight:600; font-size:.9rem; display:block; margin-bottom:.4rem;">
+        <i class="fas fa-wand-magic-sparkles" style="color:var(--primary);"></i>
+        Describe your AI niche
+      </label>
+      <textarea name="custom_niche" id="nicheTextarea" class="niche-textarea" rows="3"
+        placeholder="e.g. A bot that detects diseases in plant photos and suggests treatments…&#10;e.g. An AI that predicts energy demand from weather + calendar data…&#10;e.g. A code review assistant specialised in Python security vulnerabilities…"></textarea>
+      <div class="niche-suggest" id="nicheSuggest"></div>
+    </div>
+
   </div>
 </div>
 
-<!-- Step 2: Base Model -->
+<!-- ═══ Step 2: Base Model ═══ -->
 <div class="wizard-panel card" id="step2">
   <div class="card-header">
     <h2><i class="fas fa-microchip"></i> Choose a Base Model</h2>
@@ -86,7 +183,7 @@
   </div>
 </div>
 
-<!-- Step 3: Capabilities -->
+<!-- ═══ Step 3: Capabilities ═══ -->
 <div class="wizard-panel card" id="step3">
   <div class="card-header">
     <h2><i class="fas fa-puzzle-piece"></i> Select Capabilities</h2>
@@ -108,7 +205,7 @@
   </div>
 </div>
 
-<!-- Step 4: Training Settings -->
+<!-- ═══ Step 4: Training Settings ═══ -->
 <div class="wizard-panel card" id="step4">
   <div class="card-header">
     <h2><i class="fas fa-sliders"></i> Training Configuration</h2>
@@ -139,17 +236,17 @@
       <div class="form-group">
         <label class="form-label">Epochs: <span id="epochsVal">3</span></label>
         <div class="form-range-wrap">
-          <input type="range" name="epochs" min="1" max="20" value="3" oninput="document.getElementById('epochsVal').textContent=this.value">
+          <input type="range" name="epochs" min="1" max="100" value="3" oninput="document.getElementById('epochsVal').textContent=this.value">
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Batch Size: <span id="batchVal">4</span></label>
         <div class="form-range-wrap">
-          <input type="range" name="batch_size" min="1" max="32" value="4" oninput="document.getElementById('batchVal').textContent=this.value">
+          <input type="range" name="batch_size" min="1" max="64" value="4" oninput="document.getElementById('batchVal').textContent=this.value">
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Learning Rate: <span id="lrVal">0.0002</span></label>
+        <label class="form-label">Learning Rate: <span id="lrVal">0.000200</span></label>
         <div class="form-range-wrap">
           <input type="range" name="learning_rate" min="0.000001" max="0.01" step="0.000001" value="0.0002" oninput="document.getElementById('lrVal').textContent=parseFloat(this.value).toFixed(6)">
         </div>
@@ -164,7 +261,7 @@
 
     <div class="form-group" style="margin-top:1.5rem;">
       <label class="form-label">HuggingFace Dataset ID (optional)</label>
-      <input type="text" name="hf_dataset" class="form-input" placeholder="e.g. tatsu-lab/alpaca, openai/gsm8k">
+      <input type="text" name="hf_dataset" class="form-input" placeholder="e.g. tatsu-lab/alpaca, openai/gsm8k, beans">
       <span class="form-hint">Leave blank to upload your own files, or enter a dataset ID from huggingface.co/datasets</span>
     </div>
 
@@ -176,7 +273,7 @@
   </div>
 </div>
 
-<!-- Step 5: Policy & Agentic -->
+<!-- ═══ Step 5: Policy & Agentic ═══ -->
 <div class="wizard-panel card" id="step5">
   <div class="card-header">
     <h2><i class="fas fa-shield-halved"></i> Content Policy & Agentic Mode</h2>
@@ -189,13 +286,13 @@
         <input type="radio" name="content_policy" value="standard" checked style="display:none">
         <div class="policy-icon">🛡️</div>
         <div style="font-weight:600;">Standard (Recommended)</div>
-        <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem;">Follows safety guidelines. Refuses harmful requests. Best for most use cases.</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem;">Follows safety guidelines. Refuses harmful requests.</div>
       </label>
       <label class="policy-opt" id="pol-uncensored">
         <input type="radio" name="content_policy" value="uncensored" style="display:none">
         <div class="policy-icon">⚠️</div>
         <div style="font-weight:600;">Uncensored / Abliterated</div>
-        <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem;">Removes refusal training. For research and advanced users. Use responsibly.</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem;">Removes refusal training. For research users. Use responsibly.</div>
       </label>
     </div>
 
@@ -215,7 +312,7 @@
   </div>
 </div>
 
-<!-- Step 6: Review -->
+<!-- ═══ Step 6: Review ═══ -->
 <div class="wizard-panel card" id="step6">
   <div class="card-header">
     <h2><i class="fas fa-clipboard-check"></i> Review & Create</h2>
@@ -226,7 +323,7 @@
   </div>
 </div>
 
-<!-- Navigation buttons -->
+<!-- Navigation -->
 <div class="wizard-nav" id="wizardNav">
   <button type="button" class="btn btn-outline" id="prevBtn" onclick="wizardPrev()" style="display:none;">
     <i class="fas fa-arrow-left"></i> Back
@@ -244,15 +341,48 @@
 
 {% block scripts %}
 <script>
-const BASE_MODELS = {{ base_models | tojson }};
-const AI_TYPES = {{ ai_types | tojson }};
+const BASE_MODELS  = {{ base_models | tojson }};
+const AI_TYPES     = {{ ai_types | tojson }};
 
-let currentStep = 1;
-const totalSteps = 6;
+let currentStep   = 1;
+const totalSteps  = 6;
+let activeCat     = 'all';
+
+// ── Category filter ──────────────────────────────────────────────────────────
+
+function setCat(cat, btn) {
+  activeCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTypes();
+}
+
+// ── Type search + filter ─────────────────────────────────────────────────────
+
+function filterTypes() {
+  const q = document.getElementById('typeSearch').value.trim().toLowerCase();
+  const cards = document.querySelectorAll('.type-option[data-cat]');
+  let visible = 0;
+
+  cards.forEach(card => {
+    const catMatch = activeCat === 'all' || card.dataset.cat === activeCat;
+    const textMatch = !q || [card.dataset.label, card.dataset.desc, card.dataset.examples]
+                              .some(s => s && s.includes(q));
+    const show = catMatch && textMatch;
+    card.classList.toggle('hidden', !show);
+    if (show) visible++;
+  });
+
+  const noRes = document.getElementById('noResults');
+  noRes.style.display = visible === 0 ? '' : 'none';
+  if (visible === 0) document.getElementById('noResultsQuery').textContent = q;
+}
+
+// ── Type selection ───────────────────────────────────────────────────────────
 
 function onTypeChange(type) {
-  // Update model list in step 2
-  const models = BASE_MODELS[type] || BASE_MODELS['chatbot'];
+  // Update model list
+  const models = BASE_MODELS[type] || BASE_MODELS['chatbot'] || [];
   const list = document.getElementById('modelSelectList');
   list.innerHTML = models.map((m, i) => `
     <label class="model-option ${i===0?'selected':''}">
@@ -265,7 +395,7 @@ function onTypeChange(type) {
     </label>
   `).join('');
 
-  // Highlight selected type card
+  // Highlight selected card
   document.querySelectorAll('.type-option').forEach(el => el.classList.remove('selected'));
   const card = document.getElementById(`type-${type}`);
   if (card) card.classList.add('selected');
@@ -276,6 +406,13 @@ function onTypeChange(type) {
     const key = el.id.replace('cap-', '');
     el.style.display = allowed.includes(key) ? '' : 'none';
   });
+
+  // Show/hide custom niche textarea
+  const nicheWrap = document.getElementById('nicheInputWrap');
+  nicheWrap.classList.toggle('visible', type === 'custom');
+
+  // Niche-based template hint
+  updateNicheSuggest();
 }
 
 function selectModelOpt(radio) {
@@ -283,11 +420,50 @@ function selectModelOpt(radio) {
   radio.closest('.model-option').classList.add('selected');
 }
 
+// ── Custom niche suggestion ──────────────────────────────────────────────────
+
+const NICHE_KEYWORDS = [
+  [["image","photo","vision","detect"],  "Vision / Image AI"],
+  [["audio","sound","speech","music","voice"], "Audio / Speech AI"],
+  [["translat"],                         "Language Translator"],
+  [["summar","abstract","brief"],        "Text Summariser"],
+  [["classif","label","spam","topic"],   "Text Classifier"],
+  [["trade","crypto","forex","stock"],   "Trading Bot"],
+  [["anomal","fraud","outlier"],         "Anomaly Detector"],
+  [["forecast","predict","tabular","csv"],"Data Analyst / Forecasting"],
+  [["recommend","personali","suggest"],  "Recommendation AI"],
+  [["game","npc","reinforcement","rl"],  "Game AI / RL Agent"],
+  [["code","program","debug","review"],  "Code AI"],
+];
+
+function updateNicheSuggest() {
+  const text  = (document.getElementById('nicheTextarea')?.value || '').toLowerCase();
+  const el    = document.getElementById('nicheSuggest');
+  if (!el) return;
+  if (!text) { el.textContent = ''; return; }
+  for (const [kws, label] of NICHE_KEYWORDS) {
+    if (kws.some(k => text.includes(k))) {
+      el.innerHTML = `💡 This sounds like a <b style="cursor:pointer;text-decoration:underline;" onclick="document.querySelector('[data-cat=\\'custom\\']')?.click()">${label}</b>. Or stay with Custom for full flexibility.`;
+      return;
+    }
+  }
+  el.innerHTML = '✅ Custom niche – the platform will auto-configure the best template.';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('nicheTextarea');
+  if (ta) ta.addEventListener('input', updateNicheSuggest);
+});
+
+// ── Capabilities checkboxes ──────────────────────────────────────────────────
+
 document.querySelectorAll('.cap-option').forEach(el => {
   el.addEventListener('change', () => {
     el.classList.toggle('selected', el.querySelector('input').checked);
   });
 });
+
+// ── Policy selector ──────────────────────────────────────────────────────────
 
 document.querySelectorAll('.policy-opt').forEach(el => {
   el.addEventListener('click', () => {
@@ -295,6 +471,8 @@ document.querySelectorAll('.policy-opt').forEach(el => {
     el.classList.add('selected');
   });
 });
+
+// ── Wizard navigation ────────────────────────────────────────────────────────
 
 function wizardNext() {
   if (currentStep < totalSteps) {
@@ -309,9 +487,10 @@ function wizardPrev() {
 function showStep(n) {
   document.getElementById(`step${currentStep}`).classList.remove('active');
   document.querySelectorAll('.wizard-step').forEach((el, i) => {
-    el.classList.remove('active');
-    if (i + 1 < n) el.classList.add('done');
-    else el.classList.remove('done');
+    el.classList.remove('active', 'done');
+    if (i + 1 < n) {
+      el.classList.add('done');
+    }
   });
   currentStep = n;
   document.getElementById(`step${n}`).classList.add('active');
@@ -319,35 +498,62 @@ function showStep(n) {
   document.getElementById('prevBtn').style.display = n > 1 ? '' : 'none';
   document.getElementById('nextBtn').style.display = n < totalSteps ? '' : 'none';
   document.getElementById('submitBtn').style.display = n === totalSteps ? '' : 'none';
+  window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
+// ── Review summary ────────────────────────────────────────────────────────────
+
 function buildReview() {
-  const form = document.getElementById('builderForm');
-  const fd = new FormData(form);
+  const fd = new FormData(document.getElementById('builderForm'));
+  const niche = fd.get('custom_niche') || '';
   const items = [
-    ['AI Type', fd.get('ai_type')],
-    ['Base Model', fd.get('base_model')],
-    ['Name', fd.get('name') || '(not set)'],
-    ['Fine-tuning', fd.get('fine_tune_method')],
-    ['Epochs', fd.get('epochs')],
-    ['Batch Size', fd.get('batch_size')],
-    ['Learning Rate', fd.get('learning_rate')],
+    ['AI Type',        `${AI_TYPES[fd.get('ai_type')]?.icon||''} ${AI_TYPES[fd.get('ai_type')]?.label||fd.get('ai_type')}`],
+    ['Base Model',     fd.get('base_model')],
+    ['Name',           fd.get('name') || '(not set)'],
+    ['Fine-tuning',    fd.get('fine_tune_method')],
+    ['Quantization',   fd.get('quantization')],
+    ['Epochs',         fd.get('epochs')],
+    ['Batch Size',     fd.get('batch_size')],
+    ['Learning Rate',  fd.get('learning_rate')],
     ['Content Policy', fd.get('content_policy')],
-    ['Agentic Mode', fd.get('agentic') ? 'Enabled ✅' : 'Disabled'],
-    ['Capabilities', fd.getAll('capabilities').join(', ') || 'None'],
-    ['HF Dataset', fd.get('hf_dataset') || 'None'],
+    ['Agentic Mode',   fd.get('agentic') ? 'Enabled ✅' : 'Disabled'],
+    ['Capabilities',   fd.getAll('capabilities').join(', ') || 'None selected'],
+    ['HF Dataset',     fd.get('hf_dataset') || 'None'],
+    ...(niche ? [['Custom Niche', niche]] : []),
   ];
   document.getElementById('reviewContent').innerHTML = items.map(([k,v]) => `
-    <div class="review-item"><span class="review-key">${k}</span><span class="review-val">${v||'—'}</span></div>
+    <div class="review-item">
+      <span class="review-key">${k}</span>
+      <span class="review-val">${v||'—'}</span>
+    </div>
   `).join('');
 }
 
-// Init
-onTypeChange('chatbot');
+// ── Initialise ────────────────────────────────────────────────────────────────
+
+// Pre-select type from ?type= URL parameter (e.g. dashboard "Build One →" links)
+const _urlType = new URLSearchParams(window.location.search).get('type');
+const _initType = (_urlType && AI_TYPES[_urlType]) ? _urlType : 'chatbot';
+if (_initType !== 'chatbot') {
+  const radio = document.querySelector(`input[name=ai_type][value="${_initType}"]`);
+  if (radio) radio.checked = true;
+}
+onTypeChange(_initType);
+
 document.querySelectorAll('.type-option').forEach(el => {
   el.addEventListener('click', () => {
     const radio = el.querySelector('input[type=radio]');
-    if (radio) onTypeChange(radio.value);
+    if (radio) { radio.checked = true; onTypeChange(radio.value); }
+  });
+});
+
+// Allow step tabs to be clicked directly
+document.querySelectorAll('.wizard-step').forEach((el, i) => {
+  el.addEventListener('click', () => {
+    if (i + 1 < currentStep || i + 1 === currentStep + 1) {
+      if (i + 1 === totalSteps) buildReview();
+      showStep(i + 1);
+    }
   });
 });
 </script>

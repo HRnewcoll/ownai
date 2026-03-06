@@ -17,7 +17,7 @@ from flask_socketio import SocketIO, emit
 
 from core.config import (
     MODELS_DIR, UPLOADS_DIR, DATABASE_PATH,
-    AI_TYPES, CAPABILITIES, BASE_MODELS,
+    AI_TYPES, AI_CATEGORIES, CAPABILITIES, BASE_MODELS,
 )
 from core.model_builder import ModelBuilder
 from core.trainer import TrainingManager
@@ -129,7 +129,7 @@ def index():
         "training_models": sum(1 for m in models if m.status == "training"),
         "total_datasets": len(datasets),
     }
-    return render_template("index.html", models=models, stats=stats, ai_types=AI_TYPES)
+    return render_template("index.html", models=models, stats=stats, ai_types=AI_TYPES, ai_categories=AI_CATEGORIES)
 
 
 @app.route("/builder")
@@ -137,6 +137,7 @@ def builder_page():
     return render_template(
         "builder.html",
         ai_types=AI_TYPES,
+        ai_categories=AI_CATEGORIES,
         capabilities=CAPABILITIES,
         base_models=BASE_MODELS,
     )
@@ -148,6 +149,7 @@ def builder_edit(model_id):
     return render_template(
         "builder.html",
         ai_types=AI_TYPES,
+        ai_categories=AI_CATEGORIES,
         capabilities=CAPABILITIES,
         base_models=BASE_MODELS,
         editing=model,

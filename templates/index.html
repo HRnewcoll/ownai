@@ -2,6 +2,31 @@
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
+{% block head_extra %}
+<style>
+.cat-section { margin-bottom:2rem; }
+.cat-section-header { display:flex; align-items:center; gap:.75rem; margin-bottom:.85rem; cursor:pointer; user-select:none; }
+.cat-section-header h3 { margin:0; font-size:1rem; font-weight:700; }
+.cat-section-header .cat-icon { font-size:1.35rem; }
+.cat-section-header .cat-count-badge { margin-left:auto; padding:.15rem .55rem; background:var(--surface); border:1px solid var(--border); border-radius:999px; font-size:.75rem; color:var(--muted); font-weight:600; }
+.cat-section-header .toggle-caret { color:var(--muted); font-size:.8rem; transition:transform .2s; }
+.cat-section-header.collapsed .toggle-caret { transform:rotate(-90deg); }
+.cat-type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:.75rem; }
+.ai-type-card  { padding:1rem 1rem .9rem; border-radius:14px; border:2px solid var(--border); background:var(--surface); cursor:pointer; text-decoration:none; color:inherit; transition:all .18s; display:block; }
+.ai-type-card:hover { border-color:var(--card-color,var(--primary)); transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,.13); }
+.ai-type-icon  { font-size:1.75rem; margin-bottom:.4rem; }
+.ai-type-label { font-weight:600; font-size:.88rem; margin-bottom:.2rem; }
+.ai-type-desc  { font-size:.74rem; color:var(--muted); line-height:1.35; }
+.ai-type-examples { display:flex; gap:.25rem; flex-wrap:wrap; margin-top:.4rem; }
+.ai-type-example-tag { font-size:.65rem; padding:.1rem .38rem; border-radius:999px; background:var(--card-color,var(--primary))18; color:var(--card-color,var(--primary)); font-weight:500; }
+
+.type-search-wrap2 { position:relative; margin-bottom:1.5rem; max-width:420px; }
+.type-search-wrap2 .fas { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.type-search2 { width:100%; padding:.65rem 1rem .65rem 2.5rem; border-radius:10px; border:2px solid var(--border); background:var(--surface); color:var(--text); font-size:.9rem; outline:none; transition:border-color .2s; }
+.type-search2:focus { border-color:var(--primary); }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Stats bar -->
 <div class="stats-grid">
@@ -43,14 +68,15 @@
   </div>
 </div>
 
-<!-- Hero / CTA if no models yet -->
+<!-- Hero if no models yet -->
 {% if stats.total_models == 0 %}
 <div class="hero-card">
   <div class="hero-emoji">🧠</div>
   <h1 class="hero-title">Welcome to OwnAI</h1>
   <p class="hero-subtitle">
-    The all-in-one platform to design, train, and run your own AI — from chatbots to image generators,
-    trading bots, medical detection AI, and more. No PhD required.
+    The all-in-one platform to design, train, and run <strong>any</strong> AI — chatbots, trading bots, medical detectors,
+    music generators, recommendation engines, code assistants, game agents and much more.
+    No PhD required.
   </p>
   <a href="{{ url_for('builder_page') }}" class="btn btn-primary btn-lg">
     <i class="fas fa-wand-magic-sparkles"></i> Build Your First AI
@@ -58,20 +84,54 @@
 </div>
 {% endif %}
 
-<!-- Quick action tiles -->
-<div class="section-header">
-  <h2>AI Types You Can Build</h2>
-  <a href="{{ url_for('builder_page') }}" class="btn btn-outline btn-sm">Build One →</a>
+<!-- AI type browser -->
+<div class="section-header" style="margin-top:1rem;">
+  <h2>{{ ai_types|length }} AI Types You Can Build</h2>
+  <a href="{{ url_for('builder_page') }}" class="btn btn-outline btn-sm">Open Builder →</a>
 </div>
-<div class="ai-type-grid">
-  {% for key, at in ai_types.items() %}
-  <a href="{{ url_for('builder_page') }}#type-{{ key }}" class="ai-type-card" style="--card-color: {{ at.color }};">
-    <div class="ai-type-icon">{{ at.icon }}</div>
-    <div class="ai-type-label">{{ at.label }}</div>
-    <div class="ai-type-desc">{{ at.description }}</div>
-  </a>
-  {% endfor %}
+
+<div class="type-search-wrap2">
+  <i class="fas fa-search"></i>
+  <input class="type-search2" id="dashSearch" type="text"
+         placeholder="Search AI types… e.g. trading, speech, fraud…"
+         oninput="dashFilter()">
 </div>
+
+<!-- Grouped by category -->
+{% for cat_key, cat in ai_categories.items() %}
+{% set cat_types = ai_types.items()|selectattr('1.category','equalto',cat_key)|list %}
+{% if cat_types %}
+<div class="cat-section" id="cat-section-{{ cat_key }}">
+  <div class="cat-section-header" onclick="toggleCat('{{ cat_key }}')">
+    <span class="cat-icon">{{ cat.icon }}</span>
+    <h3>{{ cat.label }}</h3>
+    <span class="cat-count-badge">{{ cat_types|length }}</span>
+    <i class="fas fa-chevron-down toggle-caret"></i>
+  </div>
+  <div class="cat-type-grid" id="cat-grid-{{ cat_key }}">
+    {% for key, at in cat_types %}
+    <a href="{{ url_for('builder_page') }}?type={{ key }}"
+       class="ai-type-card"
+       style="--card-color: {{ at.color }};"
+       data-label="{{ at.label|lower }}"
+       data-desc="{{ at.description|lower }}"
+       data-examples="{{ (at.get('example_use_cases',[])|join(' '))|lower }}">
+      <div class="ai-type-icon">{{ at.icon }}</div>
+      <div class="ai-type-label">{{ at.label }}</div>
+      <div class="ai-type-desc">{{ at.description }}</div>
+      {% if at.get('example_use_cases') %}
+      <div class="ai-type-examples">
+        {% for ex in at.example_use_cases[:2] %}
+        <span class="ai-type-example-tag">{{ ex }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endfor %}
 
 <!-- Recent models -->
 {% if models %}
@@ -109,4 +169,38 @@
   {% endfor %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleCat(key) {
+  const header = document.querySelector(`#cat-section-${key} .cat-section-header`);
+  const grid   = document.getElementById(`cat-grid-${key}`);
+  header.classList.toggle('collapsed');
+  grid.style.display = header.classList.contains('collapsed') ? 'none' : '';
+}
+
+function dashFilter() {
+  const q = document.getElementById('dashSearch').value.trim().toLowerCase();
+  document.querySelectorAll('.ai-type-card').forEach(card => {
+    if (!q) { card.style.display = ''; return; }
+    const match = [card.dataset.label, card.dataset.desc, card.dataset.examples]
+                    .some(s => s && s.includes(q));
+    card.style.display = match ? '' : 'none';
+  });
+  // Expand all categories when searching
+  if (q) {
+    document.querySelectorAll('.cat-section-header').forEach(h => {
+      h.classList.remove('collapsed');
+      const key = h.closest('.cat-section').id.replace('cat-section-', '');
+      const grid = document.getElementById(`cat-grid-${key}`);
+      if (grid) grid.style.display = '';
+    });
+  }
+}
+
+// Pre-select AI type if ?type= param present
+const urlParams = new URLSearchParams(window.location.search);
+// (builder page handles ?type=, dashboard just shows the grid)
+</script>
 {% endblock %}

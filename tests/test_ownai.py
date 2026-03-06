@@ -17,9 +17,42 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 def test_ai_types_present():
     from core.config import AI_TYPES
-    expected = {"chatbot", "image_generator", "image_recognition", "trading_bot",
+    # Original 8 types
+    original = {"chatbot", "image_generator", "image_recognition", "trading_bot",
                 "news_sentiment", "medical_ai", "space_ai", "custom"}
-    assert expected.issubset(set(AI_TYPES.keys()))
+    assert original.issubset(set(AI_TYPES.keys()))
+    # New types added for any-niche coverage
+    new_types = {"code_ai", "translator", "summarizer", "text_classifier", "creative_writer",
+                 "object_detector", "document_ai", "face_ai",
+                 "speech_to_text", "audio_classifier", "music_ai",
+                 "anomaly_detector", "data_analyst", "recommendation",
+                 "legal_ai", "education_ai", "customer_support",
+                 "agriculture_ai", "game_ai", "cyber_ai"}
+    assert new_types.issubset(set(AI_TYPES.keys()))
+
+
+def test_ai_types_have_category():
+    from core.config import AI_TYPES, AI_CATEGORIES
+    valid_cats = set(AI_CATEGORIES.keys())
+    for key, at in AI_TYPES.items():
+        assert "category" in at, f"{key} missing category"
+        assert at["category"] in valid_cats, f"{key} has unknown category '{at['category']}'"
+
+
+def test_ai_categories_structure():
+    from core.config import AI_CATEGORIES
+    expected_cats = {"text", "vision", "audio", "data", "domain", "custom"}
+    assert expected_cats.issubset(set(AI_CATEGORIES.keys()))
+    for key, cat in AI_CATEGORIES.items():
+        assert "label" in cat, f"Category {key} missing label"
+        assert "icon" in cat, f"Category {key} missing icon"
+
+
+def test_ai_types_have_example_use_cases():
+    from core.config import AI_TYPES
+    for key, at in AI_TYPES.items():
+        assert "example_use_cases" in at, f"{key} missing example_use_cases"
+        assert len(at["example_use_cases"]) > 0, f"{key} has empty example_use_cases"
 
 
 def test_ai_types_structure():
@@ -109,23 +142,64 @@ def test_generate_training_script_chatbot():
 def test_generate_training_script_all_types():
     from core.model_builder import ModelBuilder
     b = ModelBuilder()
-    types = ["chatbot", "image_generator", "image_recognition",
-             "trading_bot", "news_sentiment", "custom"]
-    for ai_type in types:
+    # Includes all 28 AI types
+    all_types = [
+        # text
+        "chatbot", "code_ai", "translator", "summarizer", "text_classifier", "creative_writer",
+        # vision
+        "image_generator", "image_recognition", "object_detector", "document_ai", "face_ai",
+        # audio
+        "speech_to_text", "audio_classifier", "music_ai",
+        # data
+        "trading_bot", "news_sentiment", "anomaly_detector", "data_analyst", "recommendation",
+        # domain
+        "medical_ai", "space_ai", "legal_ai", "education_ai", "customer_support",
+        "agriculture_ai", "game_ai", "cyber_ai",
+        # custom
+        "custom",
+    ]
+    for ai_type in all_types:
         cfg = {"name": "t", "ai_type": ai_type, "base_model": "m",
                "fine_tune_method": "lora", "epochs": 1, "batch_size": 2,
                "learning_rate": 1e-4, "max_seq_len": 128, "capabilities": [],
                "hf_dataset": "", "datasets": [], "web_urls": "",
-               "content_policy": "standard", "agentic": False}
+               "content_policy": "standard", "agentic": False, "custom_niche": ""}
         with tempfile.TemporaryDirectory() as td:
             script = b.generate_training_script(cfg, td)
             assert os.path.exists(script), f"No script for {ai_type}"
             assert os.path.getsize(script) > 100, f"Script too small for {ai_type}"
 
 
-# ---------------------------------------------------------------------------
-# Dataset manager
-# ---------------------------------------------------------------------------
+def test_custom_niche_keyword_routing():
+    """Custom niche description should auto-route to the correct script template."""
+    from core.model_builder import ModelBuilder
+    b = ModelBuilder()
+    base_cfg = {"name": "t", "ai_type": "custom", "base_model": "m",
+                "fine_tune_method": "lora", "epochs": 1, "batch_size": 2,
+                "learning_rate": 1e-4, "max_seq_len": 128, "capabilities": [],
+                "hf_dataset": "", "datasets": [], "web_urls": "",
+                "content_policy": "standard", "agentic": False}
+    cases = [
+        ("detect plant diseases in photos", "AutoModelForImageClassification"),
+        ("transcribe speech from audio recordings", "WhisperForConditionalGeneration"),
+        ("summarize research papers", "AutoModelForSeq2SeqLM"),
+        ("classify spam and legit emails", "AutoModelForSequenceClassification"),
+        ("predict crypto price movements", "TradingLSTM"),
+        ("detect anomalies in server logs", "Autoencoder"),
+        ("forecast energy demand from time series data", "ForecastLSTM"),
+        ("recommend movies to users", "NeuralCF"),
+        ("train a game agent to play chess", "PolicyNetwork"),
+        ("generate code completions", "starcoder"),
+    ]
+    for niche, expected_marker in cases:
+        cfg = {**base_cfg, "custom_niche": niche}
+        with tempfile.TemporaryDirectory() as td:
+            script_path = b.generate_training_script(cfg, td)
+            with open(script_path) as f:
+                content = f.read()
+            assert expected_marker.lower() in content.lower(), (
+                f"Niche '{niche}' should route to script containing '{expected_marker}'"
+            )
 
 
 def test_list_uploaded_files_empty():
