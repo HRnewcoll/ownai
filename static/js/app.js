@@ -13,6 +13,63 @@ function applyTheme(theme) {
   if (label) label.textContent = theme === 'dark' ? 'Dark Mode' : 'Light Mode';
 }
 
+// ---------------------------------------------------------------------------
+// System status chip
+// ---------------------------------------------------------------------------
+
+function loadSystemStatus() {
+  fetch('/api/system/info')
+    .then(r => r.json())
+    .then(info => {
+      const dot = document.getElementById('sysDot');
+      const lbl = document.getElementById('sysLabel');
+      if (!dot || !lbl) return;
+      if (info.cuda_available) {
+        dot.className = 'sys-dot gpu';
+        const mem = info.cuda_memory_gb ? ` ${info.cuda_memory_gb}GB` : '';
+        lbl.textContent = `GPU${mem}`;
+        dot.title = info.cuda_device || 'GPU';
+      } else if (info.torch_available) {
+        dot.className = 'sys-dot cpu';
+        lbl.textContent = `CPU only`;
+        dot.title = `${info.cpu_count} cores · ${info.ram_gb || '?'} GB RAM`;
+      } else {
+        dot.className = 'sys-dot err';
+        lbl.textContent = 'No PyTorch';
+        dot.title = 'PyTorch not installed';
+      }
+      // Update chip title with full info
+      const chip = document.getElementById('sysChip');
+      if (chip) {
+        chip.title = [
+          info.torch_available ? `PyTorch ${info.torch_version}` : 'No PyTorch',
+          info.cuda_available ? `CUDA: ${info.cuda_device}` : 'CPU only',
+          info.ram_gb ? `RAM: ${info.ram_gb} GB` : '',
+          `Python ${info.python}`,
+        ].filter(Boolean).join(' · ');
+      }
+    })
+    .catch(() => {
+      const dot = document.getElementById('sysDot');
+      if (dot) dot.className = 'sys-dot err';
+    });
+}
+
+// ---------------------------------------------------------------------------
+// First-visit onboarding banner
+// ---------------------------------------------------------------------------
+
+function dismissOnboarding() {
+  const banner = document.getElementById('onboardingBanner');
+  if (banner) {
+    banner.style.animation = 'none';
+    banner.style.opacity = '0';
+    banner.style.transition = 'opacity .25s';
+    setTimeout(() => banner.remove(), 260);
+  }
+  localStorage.setItem('ownai-welcomed', '1');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Restore theme
   const saved = localStorage.getItem('ownai-theme') || 'dark';
@@ -59,6 +116,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.alert').forEach(el => {
     setTimeout(() => el.remove(), 5000);
   });
+
+  // Load system status
+  loadSystemStatus();
+
+  // Show onboarding banner on first visit
+  if (!localStorage.getItem('ownai-welcomed')) {
+    const banner = document.getElementById('onboardingBanner');
+    if (banner) {
+      setTimeout(() => { banner.style.display = 'block'; }, 800);
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------

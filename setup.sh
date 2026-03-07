@@ -48,19 +48,7 @@ fi
 
 # ── Check GPU ───────────────────────────────────────────────
 echo ""
-$PYTHON -c "
-import sys
-try:
-    import torch
-    if torch.cuda.is_available():
-        name = torch.cuda.get_device_name(0)
-        mem = round(torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
-        print(f'\033[0;32m✓\033[0m GPU detected: {name} ({mem} GB)')
-    else:
-        print('\033[1;33m⚠\033[0m No CUDA GPU detected – training will run on CPU (slower)')
-except ImportError:
-    print('\033[1;33m⚠\033[0m PyTorch not importable – check installation')
-"
+$PYTHON check_gpu.py
 
 # ── Done ────────────────────────────────────────────────────
 echo ""

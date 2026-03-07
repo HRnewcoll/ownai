@@ -1,12 +1,12 @@
 @echo off
 :: ============================================================
-:: OwnAI – One-click installer for Windows
+:: OwnAI -- One-click installer for Windows
 :: Usage: Double-click setup.bat or run in a Command Prompt
 :: ============================================================
 
 echo.
-echo   ^[^[1m OwnAI Setup^[^[0m
-echo   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+echo   OwnAI Setup
+echo   -----------------------------------
 echo.
 
 :: Check Python
@@ -46,9 +46,9 @@ if not exist .env (
     )
 )
 
-:: Check GPU
+:: GPU check via helper script
 echo.
-python -c "try:\n    import torch\n    if torch.cuda.is_available():\n        name=torch.cuda.get_device_name(0)\n        mem=round(torch.cuda.get_device_properties(0).total_memory/1e9,1)\n        print(f'  [GPU] {name} ({mem} GB)')\n    else:\n        print('  [WARN] No CUDA GPU detected - training will run on CPU (slower)')\nexcept: print('  [WARN] Could not check GPU')"
+python check_gpu.py
 
 :: Done
 echo.

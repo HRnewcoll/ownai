@@ -55,6 +55,8 @@
     <a href="#capabilities">Capabilities</a>
     <a href="#config">Configuration</a>
     <a href="#faq">FAQ</a>
+    <div class="toc-section">Community</div>
+    <a href="#ecosystem">Ecosystem &amp; Resources</a>
   </nav>
 
   <!-- ── Content ── -->
@@ -248,6 +250,120 @@ docker compose down</code></pre>
 
       <h3>My training says "failed" — what do I do?</h3>
       <p>Check the training log for error messages. Common causes: missing dependencies (run <code>pip install -r requirements.txt</code> again), out-of-memory (reduce batch size or use QLoRA), or a missing dataset.</p>
+    </section>
+
+    <!-- Ecosystem -->
+    <section class="help-section" id="ecosystem">
+      <h2>🌐 Ecosystem &amp; Resources</h2>
+      <p>OwnAI is built on top of the open-source ML ecosystem. Here are curated resources organised by category to help you go deeper.</p>
+
+      <h3>🏗️ Core ML Frameworks</h3>
+      <p>The engine powering everything OwnAI trains:</p>
+      <ul>
+        <li><a href="https://github.com/pytorch/pytorch" target="_blank"><strong>PyTorch</strong></a> — Dynamic neural networks with GPU acceleration (the backbone of OwnAI training)</li>
+        <li><a href="https://github.com/huggingface/transformers" target="_blank"><strong>🤗 Transformers</strong></a> — All the pre-trained models OwnAI uses (BERT, GPT, T5, ViT, Whisper...)</li>
+        <li><a href="https://github.com/huggingface/datasets" target="_blank"><strong>🤗 Datasets</strong></a> — The hub OwnAI links to for 100,000+ training datasets</li>
+        <li><a href="https://github.com/tensorflow/tensorflow" target="_blank"><strong>TensorFlow</strong></a> — Google's ML framework, excellent for production deployment</li>
+        <li><a href="https://github.com/keras-team/keras" target="_blank"><strong>Keras</strong></a> — High-level neural network API, great for beginners</li>
+        <li><a href="https://github.com/scikit-learn/scikit-learn" target="_blank"><strong>scikit-learn</strong></a> — Classic ML algorithms (used in OwnAI's data/analytics scripts)</li>
+        <li><a href="https://github.com/dmlc/xgboost" target="_blank"><strong>XGBoost</strong></a> — Gradient boosting (used in OwnAI's tabular/forecasting scripts)</li>
+        <li><a href="https://github.com/Lightning-AI/pytorch-lightning" target="_blank"><strong>PyTorch Lightning</strong></a> — Fine-tune any model on 1 to 10,000+ GPUs with zero code changes</li>
+        <li><a href="https://github.com/deepspeedai/DeepSpeed" target="_blank"><strong>DeepSpeed</strong></a> — Distributed training optimisation for large models</li>
+        <li><a href="https://github.com/fastai/fastai" target="_blank"><strong>fastai</strong></a> — Practical deep learning library built on PyTorch</li>
+      </ul>
+
+      <h3>🧠 LLM Training &amp; Fine-Tuning</h3>
+      <ul>
+        <li><a href="https://github.com/NamelyCorp/NamelyCorp-LLM-Studio" target="_blank"><strong>NamelyCorp LLM Studio</strong></a> — Local-first LoRA fine-tuning web UI (similar to OwnAI's approach)</li>
+        <li><a href="https://github.com/SourceBox-LLC/FineFoundry" target="_blank"><strong>FineFoundry</strong></a> — Self-hosted pipeline for dataset creation and LLM fine-tuning</li>
+        <li><a href="https://github.com/MarkusAureus/ai-model-training-center-webui" target="_blank"><strong>AI Training Center WebUI</strong></a> — Scalable self-hosted web UI for QLoRA fine-tuning</li>
+        <li><a href="https://github.com/yigit631/NexaAITrainer" target="_blank"><strong>NexaAI Trainer</strong></a> — Local, completely private web-based LLM fine-tuning</li>
+        <li><a href="https://github.com/nickyeganeh/ai-training-tool" target="_blank"><strong>ai-training-tool</strong></a> — Web application for training and customising Ollama LLM models</li>
+        <li><a href="https://github.com/sandseb123/local-lora-cookbook" target="_blank"><strong>Local LoRA Cookbook</strong></a> — Fine-tune a local LLM on your own data in 15 minutes</li>
+        <li><a href="https://github.com/wxhcore/bumblecore" target="_blank"><strong>BumbleCore</strong></a> — Training framework: Pretraining → SFT → RLHF/DPO end-to-end</li>
+        <li><a href="https://github.com/mlflow/mlflow" target="_blank"><strong>MLflow</strong></a> — Track, version, and evaluate your AI training runs</li>
+        <li><a href="https://github.com/rasbt/LLMs-from-scratch" target="_blank"><strong>LLMs from Scratch</strong></a> — Implement a ChatGPT-like LLM in PyTorch from scratch (great for learning)</li>
+      </ul>
+
+      <h3>👁️ Vision &amp; Object Detection</h3>
+      <ul>
+        <li><a href="https://github.com/ultralytics/ultralytics" target="_blank"><strong>Ultralytics YOLO</strong></a> — State-of-the-art object detection (powers OwnAI's Object Detector type)</li>
+        <li><a href="https://github.com/ultralytics/yolov5" target="_blank"><strong>YOLOv5</strong></a> — Fast object detection in PyTorch → ONNX → TFLite</li>
+        <li><a href="https://github.com/roboflow/supervision" target="_blank"><strong>Roboflow Supervision</strong></a> — Reusable computer vision tools for annotations and tracking</li>
+        <li><a href="https://github.com/google-ai-edge/mediapipe" target="_blank"><strong>MediaPipe</strong></a> — Cross-platform ML for live and streaming media (face, pose, hands)</li>
+        <li><a href="https://github.com/openai/CLIP" target="_blank"><strong>CLIP</strong></a> — Zero-shot vision-language model from OpenAI</li>
+        <li><a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose" target="_blank"><strong>OpenPose</strong></a> — Real-time multi-person keypoint detection</li>
+        <li><a href="https://github.com/WizAI-ZH/VisionWiz" target="_blank"><strong>VisionWiz</strong></a> — Open-source tool for model training, data labelling, and model testing</li>
+        <li><a href="https://github.com/SeifBoukerdenna/ModelCub" target="_blank"><strong>ModelCub</strong></a> — Local-first MLOps toolkit for computer-vision models</li>
+      </ul>
+
+      <h3>🎙️ Audio, Speech &amp; NLP</h3>
+      <ul>
+        <li><a href="https://github.com/mozilla/DeepSpeech" target="_blank"><strong>Mozilla DeepSpeech</strong></a> — On-device speech-to-text engine, Raspberry Pi to GPU servers</li>
+        <li><a href="https://github.com/explosion/spaCy" target="_blank"><strong>spaCy</strong></a> — Industrial-strength NLP in Python</li>
+        <li><a href="https://github.com/RasaHQ/rasa" target="_blank"><strong>Rasa</strong></a> — Open-source framework for text and voice-based conversational AI</li>
+        <li><a href="https://github.com/JaidedAI/EasyOCR" target="_blank"><strong>EasyOCR</strong></a> — Ready-to-use OCR with 80+ languages</li>
+        <li><a href="https://github.com/tesseract-ocr/tesseract" target="_blank"><strong>Tesseract OCR</strong></a> — Open-source OCR engine (used in OwnAI Document AI type)</li>
+        <li><a href="https://github.com/deepset-ai/haystack" target="_blank"><strong>Haystack</strong></a> — LLM orchestration framework for RAG, retrieval, and agents</li>
+      </ul>
+
+      <h3>📈 Data, Finance &amp; Trading</h3>
+      <ul>
+        <li><a href="https://github.com/OpenBB-finance/OpenBB" target="_blank"><strong>OpenBB</strong></a> — Financial data platform for analysts, quants and AI agents</li>
+        <li><a href="https://github.com/microsoft/qlib" target="_blank"><strong>Qlib</strong></a> — AI-oriented quant investment platform from Microsoft</li>
+        <li><a href="https://github.com/nautechsystems/nautilus_trader" target="_blank"><strong>Nautilus Trader</strong></a> — High-performance algorithmic trading platform</li>
+        <li><a href="https://github.com/recommenders-team/recommenders" target="_blank"><strong>Microsoft Recommenders</strong></a> — Best practices on recommendation systems</li>
+        <li><a href="https://github.com/shap/shap" target="_blank"><strong>SHAP</strong></a> — Explain any ML model's predictions with game theory</li>
+        <li><a href="https://github.com/alsk1992/CloddsBot" target="_blank"><strong>CloddsBot</strong></a> — Autonomous trading agent across 1000+ markets (Polymarket, Binance, Solana)</li>
+      </ul>
+
+      <h3>🤖 Autonomous Agents &amp; Self-Hosted Platforms</h3>
+      <ul>
+        <li><a href="https://github.com/khoj-ai/khoj" target="_blank"><strong>Khoj</strong></a> — Self-hostable AI second brain; web search + document Q&amp;A + custom agents</li>
+        <li><a href="https://github.com/LAION-AI/Open-Assistant" target="_blank"><strong>OpenAssistant</strong></a> — Chat-based assistant that understands tasks and retrieves info</li>
+        <li><a href="https://github.com/dasirra/openclaw-nas" target="_blank"><strong>OpenClaw NAS</strong></a> — Self-hosted AI agent on Docker with Telegram + Google Workspace</li>
+        <li><a href="https://github.com/TokioAI/tokioai-v1.8" target="_blank"><strong>TokioAI</strong></a> — Autonomous agent framework with 30+ tools for infrastructure control</li>
+        <li><a href="https://github.com/subculture-collective/subcorp" target="_blank"><strong>SubCorp</strong></a> — Self-hosted multi-agent system with 6 AI agents and native tool execution</li>
+        <li><a href="https://github.com/qdrant/qdrant" target="_blank"><strong>Qdrant</strong></a> — High-performance vector database for semantic search and AI memory</li>
+        <li><a href="https://github.com/pathwaycom/llm-app" target="_blank"><strong>LLM App</strong></a> — RAG pipelines always in sync with Google Drive, S3, Kafka, Postgres</li>
+        <li><a href="https://github.com/ItzCrazyKns/Perplexica" target="_blank"><strong>Perplexica</strong></a> — Self-hosted AI-powered answering engine</li>
+      </ul>
+
+      <h3>📦 Model Export, Deployment &amp; Serving</h3>
+      <ul>
+        <li><a href="https://github.com/onnx/onnx" target="_blank"><strong>ONNX</strong></a> — Open standard for ML model interoperability across frameworks</li>
+        <li><a href="https://github.com/microsoft/onnxruntime" target="_blank"><strong>ONNX Runtime</strong></a> — Cross-platform high-performance ML inference</li>
+        <li><a href="https://github.com/lutzroeder/netron" target="_blank"><strong>Netron</strong></a> — Visualise your neural network architecture</li>
+        <li><a href="https://github.com/gradio-app/gradio" target="_blank"><strong>Gradio</strong></a> — Build shareable ML demos in Python in minutes</li>
+        <li><a href="https://github.com/streamlit/streamlit" target="_blank"><strong>Streamlit</strong></a> — Fast way to build and share data apps in Python</li>
+        <li><a href="https://github.com/jina-ai/serve" target="_blank"><strong>Jina</strong></a> — Build multimodal AI applications with cloud-native stack</li>
+        <li><a href="https://github.com/ray-project/ray" target="_blank"><strong>Ray</strong></a> — Distributed AI compute engine for scaling ML workloads</li>
+      </ul>
+
+      <h3>📚 Learning &amp; Courses</h3>
+      <ul>
+        <li><a href="https://github.com/microsoft/ML-For-Beginners" target="_blank"><strong>ML for Beginners</strong></a> — Microsoft's 12-week, 26-lesson classic ML course</li>
+        <li><a href="https://github.com/microsoft/AI-For-Beginners" target="_blank"><strong>AI for Beginners</strong></a> — Microsoft's 12-week, 24-lesson AI course</li>
+        <li><a href="https://github.com/mlabonne/llm-course" target="_blank"><strong>LLM Course</strong></a> — Roadmap and Colab notebooks for getting into LLMs</li>
+        <li><a href="https://github.com/d2l-ai/d2l-en" target="_blank"><strong>Dive into Deep Learning</strong></a> — Interactive book used at 500 universities including Stanford &amp; MIT</li>
+        <li><a href="https://github.com/rasbt/LLMs-from-scratch" target="_blank"><strong>LLMs from Scratch</strong></a> — Implement a GPT from scratch, step by step</li>
+        <li><a href="https://github.com/labmlai/annotated_deep_learning_paper_implementations" target="_blank"><strong>Annotated DL Papers</strong></a> — 60+ paper implementations with side-by-side notes</li>
+        <li><a href="https://github.com/GokuMohandas/Made-With-ML" target="_blank"><strong>Made With ML</strong></a> — Production-grade ML application design, development &amp; deployment</li>
+        <li><a href="https://github.com/patchy631/ai-engineering-hub" target="_blank"><strong>AI Engineering Hub</strong></a> — In-depth LLM, RAG and AI agent tutorials</li>
+        <li><a href="https://github.com/trekhleb/homemade-machine-learning" target="_blank"><strong>Homemade ML</strong></a> — Popular ML algorithms with interactive Jupyter demos</li>
+      </ul>
+
+      <h3>🔬 Domain-Specific Tools</h3>
+      <ul>
+        <li><a href="https://github.com/ageitgey/face_recognition" target="_blank"><strong>face_recognition</strong></a> — World's simplest facial recognition API for Python</li>
+        <li><a href="https://github.com/serengil/deepface" target="_blank"><strong>DeepFace</strong></a> — Lightweight face recognition and facial attribute analysis (age, gender, emotion)</li>
+        <li><a href="https://github.com/photoprism/photoprism" target="_blank"><strong>PhotoPrism</strong></a> — AI-powered self-hosted photos app</li>
+        <li><a href="https://github.com/paperless-ngx/paperless-ngx" target="_blank"><strong>Paperless-ngx</strong></a> — AI document management: scan, index and archive documents</li>
+        <li><a href="https://github.com/Unity-Technologies/ml-agents" target="_blank"><strong>Unity ML-Agents</strong></a> — Train intelligent agents via deep RL in game environments</li>
+        <li><a href="https://github.com/pikpikcu/airecon" target="_blank"><strong>AIRecon</strong></a> — Autonomous cybersecurity agent with self-hosted LLM and Kali sandbox</li>
+        <li><a href="https://github.com/spmallick/learnopencv" target="_blank"><strong>LearnOpenCV</strong></a> — OpenCV tutorials: C++ and Python examples</li>
+        <li><a href="https://github.com/k4yt3x/video2x" target="_blank"><strong>Video2X</strong></a> — ML-based video super resolution and frame interpolation</li>
+      </ul>
     </section>
 
   </div>

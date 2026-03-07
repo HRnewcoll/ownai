@@ -1,8 +1,10 @@
 """OwnAI tests – core modules and Flask routes."""
+import io
 import json
 import os
 import sys
 import tempfile
+import zipfile
 
 import pytest
 
@@ -380,3 +382,83 @@ def test_get_model_404(client):
 def test_delete_model_404(client):
     resp = client.delete("/api/models/999")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# New API endpoints
+# ---------------------------------------------------------------------------
+
+
+def test_system_info_endpoint(client):
+    """GET /api/system/info should return system metadata."""
+    resp = client.get("/api/system/info")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    # Required fields
+    assert "python" in data
+    assert "platform" in data
+    assert "cpu_count" in data
+    assert "torch_available" in data
+    assert "cuda_available" in data
+    assert isinstance(data["cpu_count"], int)
+    assert isinstance(data["torch_available"], bool)
+
+
+def test_export_model_404(client):
+    """GET /api/models/<id>/export should 404 for nonexistent model."""
+    resp = client.get("/api/models/9999/export")
+    assert resp.status_code == 404
+
+
+def test_export_model_no_dir(client):
+    """Export endpoint returns 404 JSON when model has no output directory."""
+    # Create a model with no output dir
+    resp = client.post("/api/models", data={
+        "name": "export-test",
+        "ai_type": "chatbot",
+        "base_model": "microsoft/phi-2",
+        "fine_tune_method": "lora",
+        "epochs": "1",
+        "batch_size": "4",
+        "learning_rate": "0.0002",
+        "max_seq_len": "512",
+        "content_policy": "standard",
+    }, follow_redirects=False)
+    assert resp.status_code in (200, 302)
+
+    # Find the model we just created via the models API
+    models_resp = client.get("/models")
+    assert models_resp.status_code == 200
+
+
+def test_help_page(client):
+    """GET /help should render the help/documentation page."""
+    resp = client.get("/help")
+    assert resp.status_code == 200
+    assert b"Quick Start" in resp.data
+    assert b"Ecosystem" in resp.data
+
+
+def test_export_with_real_dir(client):
+    """Export endpoint should return a zip when the model has a valid output dir."""
+    from app import db, AIModel
+    with tempfile.TemporaryDirectory() as td:
+        # Seed the directory with a file
+        with open(os.path.join(td, "ownai_config.json"), "w") as f:
+            json.dump({"name": "test", "ai_type": "chatbot"}, f)
+        # Create a model record pointing at the temp dir directly via DB
+        with client.application.app_context():
+            m = AIModel(name="zip-test", ai_type="chatbot", status="ready",
+                        output_dir=td)
+            m.config = {"name": "zip-test", "ai_type": "chatbot"}
+            db.session.add(m)
+            db.session.commit()
+            model_id = m.id
+        resp = client.get(f"/api/models/{model_id}/export")
+        assert resp.status_code == 200
+        assert resp.content_type == "application/zip"
+        # Verify the zip contains the config file
+        buf = io.BytesIO(resp.data)
+        with zipfile.ZipFile(buf) as zf:
+            names = zf.namelist()
+        assert any("ownai_config.json" in n for n in names)

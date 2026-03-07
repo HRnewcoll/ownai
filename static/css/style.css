@@ -575,3 +575,58 @@ code, pre { font-family: 'JetBrains Mono', monospace; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* --- System status chip (sidebar footer) --- */
+.sys-status-chip {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .45rem .75rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin: .25rem .75rem .25rem;
+  cursor: default;
+  transition: background .2s;
+}
+.sys-status-chip:hover { background: var(--border); }
+.sys-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+.sys-dot.gpu  { background: #10b981; box-shadow: 0 0 6px #10b98166; }
+.sys-dot.cpu  { background: #f59e0b; }
+.sys-dot.err  { background: #ef4444; }
+.sidebar.collapsed .sys-status-chip { justify-content: center; padding: .45rem; margin: .25rem auto; }
+.sidebar.collapsed .sys-status-chip #sysLabel { display: none; }
+
+/* --- Onboarding banner --- */
+#onboardingBanner .card {
+  border: 1px solid var(--primary);
+  animation: slideUp .35s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* --- Run page: type-aware panels --- */
+.run-input-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; }
+.run-input-panel h4 { margin: 0 0 1rem; font-size: .9rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 2rem 1rem; text-align: center; cursor: pointer;
+  transition: all .2s; font-size: .9rem; color: var(--muted);
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: var(--primary)0a; color: var(--text); }
+.drop-zone input[type=file] { display: none; }
+.run-result-img { max-width: 100%; border-radius: 10px; margin-top: 1rem; display: none; }
+.inference-field { margin-bottom: .75rem; }
+.inference-field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
+
+/* --- Training epoch progress --- */
+.epoch-progress { margin: .75rem 0; }
+.epoch-label { font-size: .82rem; color: var(--muted); margin-bottom: .35rem; display: flex; justify-content: space-between; }

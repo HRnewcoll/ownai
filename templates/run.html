@@ -2,6 +2,460 @@
 {% block title %}Run – {{ model.name }}{% endblock %}
 {% block page_title %}Run: {{ model.name }}{% endblock %}
 
+{% set ai_cat = ai_types.get(model.ai_type, {}).get('category', 'text') %}
+
+{% block head_extra %}
+<style>
+.run-layout { display:grid; grid-template-columns:300px 1fr; gap:1.5rem; height:calc(100vh - 120px); }
+@media(max-width:900px){ .run-layout { grid-template-columns:1fr; height:auto; } }
+.chat-sidebar { display:flex; flex-direction:column; gap:1rem; overflow-y:auto; }
+.chat-main { display:flex; flex-direction:column; background:var(--surface); border-radius:16px; border:1px solid var(--border); overflow:hidden; }
+.chat-messages { flex:1; overflow-y:auto; padding:1.25rem; display:flex; flex-direction:column; gap:.75rem; min-height:300px; max-height:calc(100vh - 280px); }
+.chat-msg { max-width:78%; padding:.875rem 1rem; border-radius:16px; line-height:1.55; font-size:.92rem; }
+.chat-msg.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+.chat-msg.ai { align-self:flex-start; background:var(--surface-2); border-bottom-left-radius:4px; }
+.chat-msg.system { align-self:center; background:transparent; color:var(--muted); font-size:.82rem; font-style:italic; }
+.chat-input-bar { display:flex; gap:.5rem; padding:1rem; border-top:1px solid var(--border); background:var(--surface); }
+.chat-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:.75rem 1rem; color:var(--text); font-family:inherit; resize:none; min-height:48px; max-height:120px; overflow-y:auto; }
+.chat-input:focus { outline:none; border-color:var(--primary); }
+.tool-card { background:var(--surface); border-radius:12px; border:1px solid var(--border); padding:1rem; }
+.tool-card h4 { margin:0 0 .75rem; font-size:.88rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.tool-btn { width:100%; text-align:left; padding:.6rem .75rem; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); cursor:pointer; font-size:.85rem; display:flex; align-items:center; gap:.5rem; margin-bottom:.375rem; transition:all .2s; }
+.tool-btn:hover { border-color:var(--primary); background:var(--primary)10; }
+.tool-result { background:var(--code-bg); border-radius:8px; padding:.75rem; font-family:'JetBrains Mono',monospace; font-size:.78rem; max-height:200px; overflow-y:auto; margin-top:.75rem; display:none; }
+.thinking { display:flex; align-items:center; gap:.5rem; color:var(--muted); font-size:.85rem; }
+.thinking-dots span { animation:blink 1.4s infinite; }
+.thinking-dots span:nth-child(2) { animation-delay:.2s; }
+.thinking-dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0;} 40%{opacity:1;} }
+.result-img { max-width: 100%; border-radius: 10px; margin-top: .75rem; }
+.result-box { background: var(--code-bg); border-radius: 10px; padding: 1rem; margin-top: .75rem; font-size: .88rem; white-space: pre-wrap; word-break: break-word; min-height: 60px; color: #d4d4d4; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="run-layout">
+  <!-- Left sidebar: model info + type-specific panel + tools -->
+  <div class="chat-sidebar">
+    <!-- Model card -->
+    <div class="card">
+      <div class="card-body" style="padding:1rem;">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;">
+          <span class="model-icon" style="background:{{ ai_types.get(model.ai_type,{}).get('color','#6366f1') }}20;color:{{ ai_types.get(model.ai_type,{}).get('color','#6366f1') }};">
+            {{ ai_types.get(model.ai_type,{}).get('icon','🤖') }}
+          </span>
+          <div>
+            <div style="font-weight:600;">{{ model.name }}</div>
+            <div style="font-size:.78rem;color:var(--muted);">{{ ai_types.get(model.ai_type,{}).get('label', model.ai_type) }}</div>
+          </div>
+        </div>
+        <span class="status-badge status-{{ model.status }}">{{ model.status }}</span>
+        {% if model.config.get('agentic') %}
+        <span class="badge badge-purple" style="margin-left:.5rem;">🤖 Agentic</span>
+        {% endif %}
+        {% if model.config.get('capabilities') %}
+        <div style="margin-top:.75rem; display:flex; flex-wrap:wrap; gap:.375rem;">
+          {% for cap in model.config.capabilities %}
+          <span class="cap-tag">{{ cap }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Vision input panel ──────────────────────────────────────── #}
+    {% if ai_cat == 'vision' %}
+    <div class="run-input-panel">
+      <h4><i class="fas fa-image"></i> Image Input</h4>
+      <div class="drop-zone" id="imgDropZone" onclick="document.getElementById('imgFile').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleImgDrop(event)">
+        <i class="fas fa-cloud-upload-alt" style="font-size:1.8rem;margin-bottom:.5rem;display:block;"></i>
+        Click or drag an image here
+        <input type="file" id="imgFile" accept="image/*" onchange="previewImage(this)">
+      </div>
+      <img id="imgPreview" class="result-img" style="display:none;" alt="Preview">
+      <button class="btn btn-primary" style="width:100%;margin-top:.75rem;" onclick="analyseImage()">
+        <i class="fas fa-magnifying-glass"></i> Analyse Image
+      </button>
+      <div class="result-box" id="imgResult" style="display:none;"></div>
+    </div>
+
+    {# ── Audio input panel ────────────────────────────────────────── #}
+    {% elif ai_cat == 'audio' %}
+    <div class="run-input-panel">
+      <h4><i class="fas fa-music"></i> Audio Input</h4>
+      <div class="drop-zone" id="audioDropZone" onclick="document.getElementById('audioFile').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleAudioDrop(event)">
+        <i class="fas fa-file-audio" style="font-size:1.8rem;margin-bottom:.5rem;display:block;"></i>
+        Click or drag audio file (.mp3, .wav, .ogg)
+        <input type="file" id="audioFile" accept="audio/*" onchange="selectAudio(this)">
+      </div>
+      <div id="audioName" style="font-size:.82rem;color:var(--muted);margin-top:.5rem;"></div>
+      <audio id="audioPlayer" controls style="width:100%;margin-top:.5rem;display:none;"></audio>
+      <div class="form-group" style="margin-top:.75rem;">
+        <label class="form-label" style="font-size:.85rem;">Instruction (optional)</label>
+        <input type="text" id="audioPrompt" class="form-input" placeholder="e.g. Transcribe this audio">
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="analyseAudio()">
+        <i class="fas fa-waveform-lines"></i> Process Audio
+      </button>
+      <div class="result-box" id="audioResult" style="display:none;"></div>
+    </div>
+
+    {# ── Data / Trading input panel ────────────────────────────────── #}
+    {% elif ai_cat == 'data' %}
+    <div class="run-input-panel">
+      <h4><i class="fas fa-chart-line"></i> Data Input</h4>
+      {% if model.ai_type == 'trading_bot' %}
+      <div class="inference-field">
+        <label>Ticker / Symbol</label>
+        <input type="text" id="d_ticker" class="form-input" placeholder="BTC-USD, AAPL, EUR/USD" value="BTC-USD">
+      </div>
+      <div class="inference-field">
+        <label>Current Price (USD)</label>
+        <input type="number" id="d_price" class="form-input" placeholder="e.g. 65000" step="any">
+      </div>
+      <div class="inference-field">
+        <label>24h Volume</label>
+        <input type="number" id="d_volume" class="form-input" placeholder="e.g. 28000000000" step="any">
+      </div>
+      <div class="inference-field">
+        <label>24h Change %</label>
+        <input type="number" id="d_change" class="form-input" placeholder="e.g. 3.5" step="any">
+      </div>
+      {% elif model.ai_type == 'recommendation' %}
+      <div class="inference-field">
+        <label>User ID / Description</label>
+        <input type="text" id="d_user" class="form-input" placeholder="user123 or describe preferences">
+      </div>
+      <div class="inference-field">
+        <label>Item history (comma-separated)</label>
+        <input type="text" id="d_history" class="form-input" placeholder="item1, item2, item3">
+      </div>
+      {% else %}
+      <div class="inference-field">
+        <label>Input data (JSON or plain text)</label>
+        <textarea id="d_freetext" class="form-input" rows="4" placeholder='{"feature1": 1.5, "feature2": 0.3}'></textarea>
+      </div>
+      {% endif %}
+      <button class="btn btn-primary" style="width:100%;margin-top:.5rem;" onclick="runDataInference()">
+        <i class="fas fa-play"></i> Run Prediction
+      </button>
+      <div class="result-box" id="dataResult" style="display:none;"></div>
+    </div>
+    {% endif %}
+
+    {# ── Agent tools (shown for text / custom with agentic) ──────────── #}
+    {% if tools and model.config.get('capabilities') %}
+    <div class="tool-card">
+      <h4><i class="fas fa-toolbox"></i> Agent Tools</h4>
+      {% if 'web_search' in model.config.get('capabilities',[]) %}
+      <button class="tool-btn" onclick="runTool('web_search')">🌐 Web Search</button>
+      {% endif %}
+      {% if 'pc_control' in model.config.get('capabilities',[]) %}
+      <button class="tool-btn" onclick="runTool('list_dir')">📁 List Directory</button>
+      <button class="tool-btn" onclick="runTool('read_file')">📄 Read File</button>
+      <button class="tool-btn" onclick="runTool('run_command')">⚡ Run Command</button>
+      <button class="tool-btn" onclick="runTool('open_browser')">🌍 Open Browser</button>
+      {% endif %}
+      <div class="tool-result" id="toolResult"></div>
+    </div>
+    {% endif %}
+
+    <!-- Quick prompts (text/custom) -->
+    {% if ai_cat in ('text', 'domain', 'custom') %}
+    <div class="tool-card">
+      <h4><i class="fas fa-bolt"></i> Quick Prompts</h4>
+      <button class="tool-btn" onclick="setInput('Hello! What can you do?')">👋 Introduce yourself</button>
+      <button class="tool-btn" onclick="setInput('Explain your capabilities.')">📋 List capabilities</button>
+      {% if ai_cat == 'text' and model.ai_type == 'code_ai' %}
+      <button class="tool-btn" onclick="setInput('Write a Python function to sort a list.')">💻 Write code</button>
+      <button class="tool-btn" onclick="setInput('Review this code: def foo(x): return x*x')">🔍 Review code</button>
+      {% elif model.ai_type == 'summarizer' %}
+      <button class="tool-btn" onclick="setInput('Summarise this: Artificial intelligence (AI) is intelligence demonstrated by machines, as opposed to natural intelligence displayed by animals including humans.')">📋 Summarise text</button>
+      {% elif model.ai_type == 'translator' %}
+      <button class="tool-btn" onclick="setInput('Translate to French: Hello, how are you today?')">🌍 Translate</button>
+      {% else %}
+      <button class="tool-btn" onclick="setInput('/search latest AI news')">🔍 Search AI news</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Main area: chat for text/domain/custom, result display for others -->
+  {% if ai_cat in ('text', 'domain', 'custom') or ai_cat not in ('vision', 'audio', 'data') %}
+  <div class="chat-main">
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg system">
+        💬 Chat with <strong>{{ model.name }}</strong>
+        {% if model.status != 'ready' %}
+        <br><span style="color:#f59e0b;">⚠️ Model status: {{ model.status }} — training may be needed.</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="chat-input-bar">
+      {% if 'voice' in model.config.get('capabilities',[]) %}
+      <button class="btn btn-outline" id="voiceBtn" onclick="toggleVoice()" title="Voice input">
+        <i class="fas fa-microphone"></i>
+      </button>
+      {% endif %}
+      <textarea class="chat-input" id="chatInput" placeholder="Type a message… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+      <button class="btn btn-primary" onclick="sendMessage()" id="sendBtn">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Non-chat types: large result panel -->
+  <div class="card" style="overflow:auto;">
+    <div class="card-header">
+      <h3>
+        {% if ai_cat == 'vision' %}<i class="fas fa-image"></i> Vision Results
+        {% elif ai_cat == 'audio' %}<i class="fas fa-waveform-lines"></i> Audio Results
+        {% elif ai_cat == 'data' %}<i class="fas fa-chart-bar"></i> Prediction Results
+        {% endif %}
+      </h3>
+    </div>
+    <div class="card-body">
+      <div id="mainResultBox" style="min-height:200px; color:var(--muted); font-size:.9rem; white-space:pre-wrap;">
+        Select {{ 'an image' if ai_cat == 'vision' else 'an audio file' if ai_cat == 'audio' else 'input data' }} on the left and click the run button to see results here.
+      </div>
+      {% if ai_cat == 'vision' %}
+      <img id="mainResultImg" class="result-img" style="display:none;" alt="Analysis result">
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MODEL_ID = {{ model.id }};
+const MODEL_NAME = {{ model.name | tojson }};
+const AI_CAT = {{ ai_cat | tojson }};
+const AI_TYPE = {{ model.ai_type | tojson }};
+let isRecording = false;
+
+// ── Chat (text/domain/custom) ─────────────────────────────────────────────
+const chatInput = document.getElementById('chatInput');
+if (chatInput) {
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = chatInput.scrollHeight + 'px';
+  });
+}
+
+function setInput(text) {
+  if (chatInput) { chatInput.value = text; chatInput.focus(); }
+}
+
+function appendMsg(role, text) {
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.innerHTML = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function showThinking() {
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.className = 'chat-msg ai thinking'; div.id = 'thinkingMsg';
+  div.innerHTML = `🤖 <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>`;
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
+}
+function hideThinking() { const el = document.getElementById('thinkingMsg'); if (el) el.remove(); }
+
+function sendMessage() {
+  if (!chatInput) return;
+  const msg = chatInput.value.trim();
+  if (!msg) return;
+  appendMsg('user', msg);
+  chatInput.value = ''; chatInput.style.height = 'auto';
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) sendBtn.disabled = true;
+  showThinking();
+  fetch(`/api/chat/${MODEL_ID}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: msg}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    hideThinking();
+    if (d.error) appendMsg('system', `⚠️ ${d.error}`);
+    else {
+      appendMsg('ai', d.response || '(No response)');
+      if (d.tool_results && d.tool_results.length > 0)
+        appendMsg('system', `🔧 Tool used: ${d.tool_results[0].tool}`);
+    }
+    if (sendBtn) sendBtn.disabled = false;
+  })
+  .catch(err => { hideThinking(); appendMsg('system', `❌ ${err}`); if (sendBtn) sendBtn.disabled = false; });
+}
+
+// ── Vision ────────────────────────────────────────────────────────────────
+let selectedImageFile = null;
+
+function previewImage(input) {
+  if (!input.files[0]) return;
+  selectedImageFile = input.files[0];
+  const url = URL.createObjectURL(input.files[0]);
+  const prev = document.getElementById('imgPreview');
+  if (prev) { prev.src = url; prev.style.display = 'block'; }
+  document.getElementById('imgDropZone').innerHTML =
+    `<i class="fas fa-check-circle" style="color:var(--success);font-size:1.5rem;display:block;margin-bottom:.3rem;"></i>${input.files[0].name}`;
+}
+function handleImgDrop(e) {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) {
+    selectedImageFile = f;
+    previewImage({files: [f]});
+  }
+}
+function analyseImage() {
+  if (!selectedImageFile) { alert('Please select an image first.'); return; }
+  const resultEl = document.getElementById('imgResult');
+  const mainEl = document.getElementById('mainResultBox');
+  if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '🔄 Analysing…'; }
+  if (mainEl) { mainEl.textContent = '🔄 Analysing image…'; }
+  const fd = new FormData();
+  fd.append('image', selectedImageFile);
+  fd.append('model_id', MODEL_ID);
+  fetch(`/api/chat/${MODEL_ID}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: `Analyse this image: ${selectedImageFile.name}`}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    const txt = d.response || d.error || '(No response)';
+    if (resultEl) resultEl.textContent = txt;
+    if (mainEl) mainEl.textContent = txt;
+  })
+  .catch(e => { if (resultEl) resultEl.textContent = `Error: ${e}`; });
+}
+
+// ── Audio ─────────────────────────────────────────────────────────────────
+let selectedAudioFile = null;
+
+function selectAudio(input) {
+  if (!input.files[0]) return;
+  selectedAudioFile = input.files[0];
+  const nameEl = document.getElementById('audioName');
+  const player = document.getElementById('audioPlayer');
+  if (nameEl) nameEl.textContent = input.files[0].name;
+  if (player) { player.src = URL.createObjectURL(input.files[0]); player.style.display = 'block'; }
+}
+function handleAudioDrop(e) {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('audio/')) { selectedAudioFile = f; selectAudio({files: [f]}); }
+}
+function analyseAudio() {
+  if (!selectedAudioFile) { alert('Please select an audio file first.'); return; }
+  const prompt = document.getElementById('audioPrompt')?.value || 'Transcribe this audio';
+  const resultEl = document.getElementById('audioResult');
+  const mainEl = document.getElementById('mainResultBox');
+  if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '🔄 Processing…'; }
+  if (mainEl) mainEl.textContent = '🔄 Processing audio…';
+  fetch(`/api/chat/${MODEL_ID}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: `${prompt}: ${selectedAudioFile.name}`}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    const txt = d.response || d.error || '(No response)';
+    if (resultEl) resultEl.textContent = txt;
+    if (mainEl) mainEl.textContent = txt;
+  })
+  .catch(e => { if (resultEl) resultEl.textContent = `Error: ${e}`; });
+}
+
+// ── Data / Trading / Analytics ────────────────────────────────────────────
+function runDataInference() {
+  let payload = {};
+  if (AI_TYPE === 'trading_bot') {
+    payload = {
+      ticker: document.getElementById('d_ticker')?.value,
+      price: document.getElementById('d_price')?.value,
+      volume: document.getElementById('d_volume')?.value,
+      change_24h: document.getElementById('d_change')?.value,
+    };
+  } else if (AI_TYPE === 'recommendation') {
+    payload = {
+      user: document.getElementById('d_user')?.value,
+      history: document.getElementById('d_history')?.value,
+    };
+  } else {
+    const raw = document.getElementById('d_freetext')?.value || '';
+    try { payload = JSON.parse(raw); } catch { payload = {input: raw}; }
+  }
+  const resultEl = document.getElementById('dataResult');
+  const mainEl = document.getElementById('mainResultBox');
+  if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '🔄 Running prediction…'; }
+  if (mainEl) mainEl.textContent = '🔄 Running prediction…';
+  fetch(`/api/chat/${MODEL_ID}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: JSON.stringify(payload)}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    const txt = d.response || d.error || '(No response)';
+    if (resultEl) resultEl.textContent = txt;
+    if (mainEl) mainEl.textContent = txt;
+  })
+  .catch(e => { if (resultEl) resultEl.textContent = `Error: ${e}`; });
+}
+
+// ── Agent tools ───────────────────────────────────────────────────────────
+function runTool(toolName) {
+  const param = prompt(`Tool: ${toolName}\nEnter parameter (query/path/command/url):`);
+  if (!param) return;
+  const paramMap = {
+    web_search: {query: param}, list_dir: {path: param},
+    read_file: {path: param}, run_command: {command: param}, open_browser: {url: param},
+  };
+  fetch('/api/agent/tool', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({model_id: MODEL_ID, tool: toolName, params: paramMap[toolName] || {}}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    const res = document.getElementById('toolResult');
+    if (res) { res.style.display = 'block'; res.textContent = JSON.stringify(d, null, 2); }
+    appendMsg?.('system', `🔧 ${toolName} executed`);
+  });
+}
+
+// ── Voice input ───────────────────────────────────────────────────────────
+function toggleVoice() {
+  const btn = document.getElementById('voiceBtn');
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Voice input not supported in this browser. Try Chrome.'); return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR(); rec.lang = 'en-US'; rec.interimResults = false;
+  rec.onstart = () => btn.innerHTML = '<i class="fas fa-microphone-slash" style="color:#ef4444;"></i>';
+  rec.onresult = e => { if (chatInput) chatInput.value = e.results[0][0].transcript; btn.innerHTML = '<i class="fas fa-microphone"></i>'; };
+  rec.onerror = rec.onend = () => btn.innerHTML = '<i class="fas fa-microphone"></i>';
+  rec.start();
+}
+</script>
+{% endblock %}
+
 {% block head_extra %}
 <style>
 .run-layout { display:grid; grid-template-columns:300px 1fr; gap:1.5rem; height:calc(100vh - 120px); }

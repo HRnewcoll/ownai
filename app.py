@@ -467,6 +467,9 @@ def _run_inference(model: AIModel, message: str) -> str:
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
     return send_from_directory(UPLOADS_DIR, filename)
+
+
+@app.route("/api/agent/tool", methods=["POST"])
 def api_agent_tool():
     """Execute an agent tool call."""
     data = request.get_json() or {}

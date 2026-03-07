@@ -40,6 +40,9 @@
     <a href="{{ url_for('run_page', model_id=model.id) }}" class="btn btn-primary">
       <i class="fas fa-play"></i> Run Model
     </a>
+    <a href="{{ url_for('api_export_model', model_id=model.id) }}" class="btn btn-outline" title="Download model weights as zip">
+      <i class="fas fa-download"></i> Download Model
+    </a>
     {% endif %}
     <button id="startBtn" class="btn btn-success" onclick="startTraining({{ model.id }})" {% if is_running %}style="display:none"{% endif %}>
       <i class="fas fa-play"></i> Start Training
@@ -111,6 +114,14 @@
         <h3><i class="fas fa-terminal"></i> Training Log</h3>
         <button class="btn btn-outline btn-xs" onclick="clearLog()">Clear</button>
       </div>
+      <!-- Epoch progress (shown during training) -->
+      <div id="epochProgress" class="epoch-progress" style="padding:.75rem 1rem .25rem; display:none;">
+        <div class="epoch-label">
+          <span id="epochText">Epoch 0 / ?</span>
+          <span id="epochPct">0%</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="epochBar" style="width:0%"></div></div>
+      </div>
       <div class="card-body" style="padding:.75rem;">
         <div class="log-box" id="logBox">
           {% for line in log_lines %}
@@ -179,6 +190,25 @@ function appendLog(line) {
   div.textContent = line;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
+  // Parse epoch progress from log lines like:
+  //   [OwnAI] Epoch 2/5  or  {'epoch': 2, 'loss': 0.3}  or  Epoch 2/5:
+  const epochMatch = line.match(/epoch\s+(\d+)\s*[/\\]\s*(\d+)/i)
+    || line.match(/"epoch"\s*:\s*(\d+(?:\.\d+)?)/i);
+  if (epochMatch) {
+    const cur = parseFloat(epochMatch[1]);
+    const total = epochMatch[2] ? parseInt(epochMatch[2], 10) : null;
+    const progressEl = document.getElementById('epochProgress');
+    if (progressEl) {
+      progressEl.style.display = 'block';
+      document.getElementById('epochText').textContent =
+        total ? `Epoch ${Math.round(cur)} / ${total}` : `Epoch ${Math.round(cur)}`;
+      if (total) {
+        const pct = Math.min(100, Math.round((cur / total) * 100));
+        document.getElementById('epochPct').textContent = `${pct}%`;
+        document.getElementById('epochBar').style.width = `${pct}%`;
+      }
+    }
+  }
 }
 
 function clearLog() {
