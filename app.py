@@ -5,13 +5,15 @@ Run with:
 
 Then open http://localhost:5000 in your browser.
 """
+import io
 import os
 import json
 import uuid
+import zipfile
 import logging
 from datetime import datetime
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
 
@@ -462,7 +464,9 @@ def _run_inference(model: AIModel, message: str) -> str:
         return f"⚠️ Could not load model for inference: {e}\n\nOnce your model is fully trained you can chat here."
 
 
-@app.route("/api/agent/tool", methods=["POST"])
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOADS_DIR, filename)
 def api_agent_tool():
     """Execute an agent tool call."""
     data = request.get_json() or {}
@@ -490,9 +494,83 @@ def api_agent_tool():
 # ---------------------------------------------------------------------------
 
 
-@app.route("/uploads/<path:filename>")
-def uploaded_file(filename):
-    return send_from_directory(UPLOADS_DIR, filename)
+@app.route("/help")
+def help_page():
+    return render_template("help.html", ai_types=AI_TYPES, ai_categories=AI_CATEGORIES)
+
+
+# ---------------------------------------------------------------------------
+# API – System info
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/system/info")
+def api_system_info():
+    """Return system capability info: GPU, CPU, memory, Python, torch."""
+    import sys
+    import platform as _platform
+    info: dict = {
+        "python": sys.version.split()[0],
+        "platform": _platform.system(),
+        "cpu_count": os.cpu_count() or 1,
+        "torch_available": False,
+        "cuda_available": False,
+        "cuda_device": None,
+        "cuda_memory_gb": None,
+        "ram_gb": None,
+    }
+    # RAM
+    try:
+        import psutil
+        info["ram_gb"] = round(psutil.virtual_memory().total / (1024 ** 3), 1)
+        info["ram_used_gb"] = round(psutil.virtual_memory().used / (1024 ** 3), 1)
+    except ImportError:
+        pass
+    # Torch / CUDA
+    try:
+        import torch
+        info["torch_available"] = True
+        info["torch_version"] = torch.__version__
+        info["cuda_available"] = torch.cuda.is_available()
+        if torch.cuda.is_available():
+            info["cuda_device"] = torch.cuda.get_device_name(0)
+            info["cuda_memory_gb"] = round(
+                torch.cuda.get_device_properties(0).total_memory / (1024 ** 3), 1
+            )
+    except ImportError:
+        pass
+    return jsonify(info)
+
+
+# ---------------------------------------------------------------------------
+# API – Model export (download as zip)
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/models/<int:model_id>/export")
+def api_export_model(model_id):
+    """Package the model output directory as a downloadable zip file."""
+    model = db.get_or_404(AIModel, model_id)
+    out_dir = model.output_dir
+    if not out_dir or not os.path.isdir(out_dir):
+        return jsonify({"error": "No output directory found. Train the model first."}), 404
+
+    # Stream zip into memory to avoid large temp files
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(out_dir):
+            for fname in files:
+                full_path = os.path.join(root, fname)
+                arcname = os.path.relpath(full_path, os.path.dirname(out_dir))
+                zf.write(full_path, arcname)
+    buf.seek(0)
+    safe_name = "".join(c if c.isalnum() else "_" for c in model.name)
+    return send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{safe_name}_model.zip",
+    )
 
 
 # ---------------------------------------------------------------------------

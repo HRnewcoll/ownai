@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Help & Docs{% endblock %}
+{% block page_title %}Help & Documentation{% endblock %}
+
+{% block head_extra %}
+<style>
+.help-grid { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: start; }
+@media (max-width: 900px) { .help-grid { grid-template-columns: 1fr; } }
+.help-toc { position: sticky; top: 1.5rem; }
+.help-toc a { display: block; padding: .4rem .75rem; border-radius: 8px; font-size: .88rem; color: var(--muted); text-decoration: none; transition: all .15s; }
+.help-toc a:hover, .help-toc a.active { background: var(--primary)18; color: var(--primary); }
+.help-toc .toc-section { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: .75rem .75rem .25rem; font-weight: 600; }
+.help-section { margin-bottom: 3rem; }
+.help-section h2 { font-size: 1.35rem; margin: 0 0 1rem; padding-bottom: .5rem; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: .6rem; }
+.help-section h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; color: var(--text); }
+.help-section p, .help-section li { font-size: .92rem; line-height: 1.7; color: var(--muted); }
+.help-section ul, .help-section ol { padding-left: 1.4rem; }
+.help-section code { background: var(--code-bg); padding: .1rem .4rem; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: .82rem; color: #e879f9; }
+.help-section pre { background: var(--code-bg); border-radius: 10px; padding: 1rem 1.25rem; font-family: 'JetBrains Mono', monospace; font-size: .82rem; overflow-x: auto; line-height: 1.65; }
+.help-section pre code { background: none; padding: 0; color: #d4d4d4; }
+.tip-box { background: var(--primary)12; border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0; padding: .75rem 1rem; margin: 1rem 0; font-size: .88rem; }
+.tip-box strong { color: var(--primary); }
+.warn-box { background: #f59e0b18; border-left: 3px solid #f59e0b; border-radius: 0 10px 10px 0; padding: .75rem 1rem; margin: 1rem 0; font-size: .88rem; }
+.warn-box strong { color: #f59e0b; }
+.type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin: 1rem 0; }
+.type-help-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .75rem 1rem; font-size: .84rem; }
+.type-help-card .th { font-size: 1.3rem; margin-bottom: .25rem; }
+.type-help-card strong { display: block; margin-bottom: .2rem; }
+.type-help-card span { color: var(--muted); }
+.step-list { counter-reset: step; list-style: none; padding: 0; }
+.step-list li { counter-increment: step; display: flex; gap: .75rem; margin-bottom: 1rem; align-items: flex-start; }
+.step-list li::before { content: counter(step); min-width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: .82rem; font-weight: 700; flex-shrink: 0; margin-top: .1rem; }
+.step-list li div strong { display: block; margin-bottom: .2rem; }
+.step-list li div span { font-size: .87rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="help-grid">
+  <!-- ── Table of Contents ── -->
+  <nav class="help-toc card" style="padding: 1rem;">
+    <div style="font-weight:700; margin-bottom:.75rem; padding: 0 .5rem;">📖 Contents</div>
+    <div class="toc-section">Getting Started</div>
+    <a href="#quickstart">Quick Start</a>
+    <a href="#requirements">Requirements</a>
+    <a href="#docker">Docker Install</a>
+    <div class="toc-section">Using OwnAI</div>
+    <a href="#build">1 · Build Your AI</a>
+    <a href="#datasets">2 · Add Datasets</a>
+    <a href="#train">3 · Train</a>
+    <a href="#run">4 · Run &amp; Chat</a>
+    <a href="#export">5 · Export Model</a>
+    <div class="toc-section">Reference</div>
+    <a href="#aitypes">AI Types</a>
+    <a href="#capabilities">Capabilities</a>
+    <a href="#config">Configuration</a>
+    <a href="#faq">FAQ</a>
+  </nav>
+
+  <!-- ── Content ── -->
+  <div>
+
+    <!-- Quick Start -->
+    <section class="help-section" id="quickstart">
+      <h2>🚀 Quick Start</h2>
+      <ol class="step-list">
+        <li><div><strong>Clone the repo</strong><span>Download OwnAI to your machine.</span></div></li>
+        <li><div><strong>Run setup</strong><span>On Linux/macOS: <code>bash setup.sh</code> &nbsp;·&nbsp; On Windows: double-click <code>setup.bat</code></span></div></li>
+        <li><div><strong>Start the app</strong><span><code>python app.py</code> then open <a href="http://localhost:5000" target="_blank">http://localhost:5000</a></span></div></li>
+        <li><div><strong>Build your first AI</strong><span>Click <strong>Build AI</strong> in the sidebar, pick a type and follow the wizard.</span></div></li>
+      </ol>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> First-time setup installs all Python dependencies automatically.
+        A GPU isn't required — everything runs on CPU too (training will be slower).
+      </div>
+      <h3>Manual install</h3>
+      <pre><code>git clone https://github.com/HRnewcoll/ownai.git
+cd ownai
+python -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python app.py</code></pre>
+    </section>
+
+    <!-- Requirements -->
+    <section class="help-section" id="requirements">
+      <h2>📋 Requirements</h2>
+      <ul>
+        <li><strong>Python 3.10+</strong> — check with <code>python --version</code></li>
+        <li><strong>8 GB RAM</strong> minimum; 16 GB+ recommended for 7B+ parameter models</li>
+        <li><strong>NVIDIA GPU + CUDA</strong> (optional but strongly recommended for training speed)</li>
+        <li><strong>~10 GB disk space</strong> for base model downloads</li>
+      </ul>
+      <div class="warn-box">
+        <strong>⚠️ Large models:</strong> Models like Llama-3 8B or Mistral 7B require at least 16 GB RAM (or 8 GB VRAM + 4-bit quantization). Smaller models like Phi-2 run fine on 8 GB RAM.
+      </div>
+    </section>
+
+    <!-- Docker -->
+    <section class="help-section" id="docker">
+      <h2>🐳 Docker Install</h2>
+      <p>Docker is the easiest way to deploy OwnAI on any server.</p>
+      <pre><code># Build and start (CPU mode)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down</code></pre>
+      <p>Models and datasets are stored in <code>./models_dir</code> and <code>./uploads</code> on the host, so they persist across restarts.</p>
+      <div class="tip-box">
+        <strong>💡 GPU with Docker:</strong> Install <code>nvidia-container-toolkit</code> on the host, then uncomment the GPU section in <code>docker-compose.yml</code>.
+      </div>
+    </section>
+
+    <!-- Build -->
+    <section class="help-section" id="build">
+      <h2>🔨 1 · Build Your AI</h2>
+      <p>The <strong>Build AI</strong> wizard guides you through five steps:</p>
+      <ol>
+        <li><strong>Choose AI Type</strong> — Search or browse 28 types across 6 categories. Use the custom type and describe your niche in plain English — OwnAI will auto-select the right training template.</li>
+        <li><strong>Pick Base Model</strong> — Select a pre-trained model to fine-tune. Smaller models (Phi-2, DistilBERT) train faster; larger ones produce better results.</li>
+        <li><strong>Set Capabilities</strong> — Enable web search, voice, reasoning, multimodal, or PC control.</li>
+        <li><strong>Configure Training</strong> — LoRA (fast, low memory) or full fine-tuning. Set epochs, batch size and learning rate.</li>
+        <li><strong>Review &amp; Create</strong> — Confirm settings and click <em>Create AI</em>.</li>
+      </ol>
+    </section>
+
+    <!-- Datasets -->
+    <section class="help-section" id="datasets">
+      <h2>📂 2 · Add Datasets</h2>
+      <p>Go to <strong>Datasets</strong> in the sidebar to add training data. Three sources are supported:</p>
+      <ul>
+        <li><strong>File Upload</strong> — <code>.txt</code>, <code>.csv</code>, <code>.jsonl</code>, <code>.json</code>, images, PDFs</li>
+        <li><strong>HuggingFace Hub</strong> — Search and link any of the 100,000+ public datasets (e.g. <code>tatsu-lab/alpaca</code>)</li>
+        <li><strong>Web Scrape</strong> — Enter URLs; OwnAI will fetch and extract text for training</li>
+      </ul>
+      <div class="tip-box">
+        <strong>💡 Format tip:</strong> JSONL files work best. Each line should be <code>{"text": "your training example"}</code>.
+      </div>
+    </section>
+
+    <!-- Train -->
+    <section class="help-section" id="train">
+      <h2>⚡ 3 · Train</h2>
+      <p>From <strong>My Models</strong>, click <em>Train</em> next to your model. Then click <strong>Start Training</strong>.</p>
+      <ul>
+        <li>Training runs in the background — live logs stream to the page in real time.</li>
+        <li>The generated training script is visible via the <em>View Script</em> button — you can copy and run it on any machine.</li>
+        <li>Status updates automatically: <em>draft → training → ready</em> (or <em>failed</em>).</li>
+        <li>Training can be stopped at any time.</li>
+      </ul>
+      <div class="warn-box">
+        <strong>⚠️ First run:</strong> The first epoch will take longer as HuggingFace downloads the base model weights (~1–30 GB depending on model size).
+      </div>
+    </section>
+
+    <!-- Run -->
+    <section class="help-section" id="run">
+      <h2>💬 4 · Run &amp; Chat</h2>
+      <p>Once status is <em>ready</em>, click <strong>Run</strong>. The interface adapts to your AI type:</p>
+      <ul>
+        <li><strong>Text / Chat models</strong> — Chat interface with optional voice input</li>
+        <li><strong>Vision models</strong> — Image upload + analysis</li>
+        <li><strong>Audio / Speech models</strong> — Audio file upload</li>
+        <li><strong>Data / Trading models</strong> — Guided prediction inputs</li>
+        <li><strong>Agentic models</strong> — Additional tool panel (web search, file access, commands)</li>
+      </ul>
+      <p>You can also use <strong>Quick Prompts</strong> from the sidebar to send common requests instantly.</p>
+    </section>
+
+    <!-- Export -->
+    <section class="help-section" id="export">
+      <h2>📦 5 · Export Model</h2>
+      <p>Download your trained model weights and configuration as a zip file from the <em>Train</em> page using the <strong>Download Model</strong> button.</p>
+      <p>The zip contains:</p>
+      <ul>
+        <li><code>train.py</code> — the generated training script</li>
+        <li><code>ownai_config.json</code> — your model configuration</li>
+        <li><code>training.log</code> — full training log</li>
+        <li>Model checkpoint files (once training is complete)</li>
+      </ul>
+      <p>You can load the exported checkpoint on any machine using the standard HuggingFace API.</p>
+    </section>
+
+    <!-- AI Types -->
+    <section class="help-section" id="aitypes">
+      <h2>🤖 AI Types</h2>
+      {% for cat_key, cat in ai_categories.items() %}
+      <h3>{{ cat.icon }} {{ cat.label }}</h3>
+      <div class="type-grid">
+        {% for type_key, at in ai_types.items() if at.category == cat_key %}
+        <div class="type-help-card">
+          <div class="th">{{ at.icon }}</div>
+          <strong>{{ at.label }}</strong>
+          <span>{{ at.example_use_cases[0] if at.example_use_cases else '' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </section>
+
+    <!-- Capabilities -->
+    <section class="help-section" id="capabilities">
+      <h2>⚙️ Capabilities</h2>
+      <ul>
+        <li><strong>🌐 Web Search</strong> — DuckDuckGo integration; use <code>/search &lt;query&gt;</code> in chat</li>
+        <li><strong>💻 PC Control</strong> — File read/write, directory listing, shell commands (sandboxed)</li>
+        <li><strong>🎤 Voice Input</strong> — Browser Web Speech API (Chrome required)</li>
+        <li><strong>🖼️ Multimodal</strong> — Process text + images together</li>
+        <li><strong>🧠 Reasoning</strong> — Chain-of-thought, step-by-step thinking</li>
+        <li><strong>🔧 Function Calling</strong> — Structured tool use and JSON output</li>
+      </ul>
+    </section>
+
+    <!-- Config -->
+    <section class="help-section" id="config">
+      <h2>🔧 Configuration</h2>
+      <p>Copy <code>.env.example</code> to <code>.env</code> and edit it. All settings are optional:</p>
+      <table class="config-table" style="width:100%;border-collapse:collapse;">
+        <tr style="background:var(--surface-2);"><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Variable</th><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Default</th><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Description</th></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>SECRET_KEY</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">random</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">Flask session secret — set a fixed value in production</td></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>PORT</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">5000</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">HTTP port to listen on</td></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>HUGGINGFACE_HUB_TOKEN</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">—</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">HF token for gated models (Llama, Gemma)</td></tr>
+        <tr><td style="padding:.5rem .75rem;font-size:.84rem;"><code>CUDA_VISIBLE_DEVICES</code></td><td style="padding:.5rem .75rem;font-size:.84rem;">0</td><td style="padding:.5rem .75rem;font-size:.84rem;">GPU index; set to -1 for CPU only</td></tr>
+      </table>
+    </section>
+
+    <!-- FAQ -->
+    <section class="help-section" id="faq">
+      <h2>❓ FAQ</h2>
+
+      <h3>Do I need a GPU?</h3>
+      <p>No — CPU-only training works for all model types, but it's much slower. A mid-range NVIDIA GPU (8 GB VRAM) makes training practical. For large models (7B+) use 4-bit quantization (QLoRA).</p>
+
+      <h3>How do I use a gated model like Llama or Gemma?</h3>
+      <p>Accept the model's license on HuggingFace, then set <code>HUGGINGFACE_HUB_TOKEN=hf_...</code> in your <code>.env</code> file.</p>
+
+      <h3>Can I train on custom image / audio data?</h3>
+      <p>Yes — upload image or audio files via the Datasets page. They'll be used by the vision / audio training scripts automatically.</p>
+
+      <h3>Where are my models saved?</h3>
+      <p>In the <code>models_dir/</code> folder inside the project directory. Each model gets its own subfolder containing the checkpoint, config and training script.</p>
+
+      <h3>How do I run OwnAI on a server / in the cloud?</h3>
+      <p>Use Docker Compose. Set <code>PORT</code>, <code>SECRET_KEY</code>, and optionally a reverse-proxy like nginx for HTTPS. See the <a href="#docker">Docker Install</a> section above.</p>
+
+      <h3>My training says "failed" — what do I do?</h3>
+      <p>Check the training log for error messages. Common causes: missing dependencies (run <code>pip install -r requirements.txt</code> again), out-of-memory (reduce batch size or use QLoRA), or a missing dataset.</p>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Highlight active TOC item as user scrolls
+const sections = document.querySelectorAll('.help-section');
+const tocLinks = document.querySelectorAll('.help-toc a');
+
+function updateTOC() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  tocLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === `#${current}`);
+  });
+}
+window.addEventListener('scroll', updateTOC, {passive: true});
+updateTOC();
+</script>
+{% endblock %}

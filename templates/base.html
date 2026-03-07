@@ -39,8 +39,16 @@
       <a href="{{ url_for('datasets_page') }}" class="nav-item {% if request.endpoint == 'datasets_page' %}active{% endif %}">
         <i class="fas fa-database"></i><span>Datasets</span>
       </a>
+      <a href="{{ url_for('help_page') }}" class="nav-item {% if request.endpoint == 'help_page' %}active{% endif %}">
+        <i class="fas fa-circle-question"></i><span>Help</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
+      <!-- System status chip -->
+      <div class="sys-status-chip" id="sysChip" title="System status">
+        <span class="sys-dot" id="sysDot"></span>
+        <span id="sysLabel" style="font-size:.78rem;">Checking…</span>
+      </div>
       <a href="https://github.com/HRnewcoll/ownai" target="_blank" class="nav-item">
         <i class="fab fa-github"></i><span>GitHub</span>
       </a>
@@ -49,6 +57,26 @@
       </button>
     </div>
   </aside>
+
+  <!-- First-visit onboarding banner -->
+  <div id="onboardingBanner" style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;z-index:800;max-width:360px;">
+    <div class="card" style="padding:1.25rem;box-shadow:0 8px 32px rgba(0,0,0,.35);">
+      <div style="display:flex;align-items:flex-start;gap:.75rem;">
+        <span style="font-size:2rem;line-height:1;">👋</span>
+        <div>
+          <strong style="display:block;margin-bottom:.3rem;">Welcome to OwnAI!</strong>
+          <p style="font-size:.85rem;color:var(--muted);margin:0 0 .75rem;">Build, train and run your own AI in minutes — no PhD needed.</p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <a href="{{ url_for('builder_page') }}" class="btn btn-primary btn-sm">
+              <i class="fas fa-wand-magic-sparkles"></i> Build my first AI
+            </a>
+            <a href="{{ url_for('help_page') }}" class="btn btn-outline btn-sm">Learn how →</a>
+          </div>
+        </div>
+        <button onclick="dismissOnboarding()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;line-height:1;padding:0;margin-left:.25rem;">×</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Main content -->
   <main class="main-content" id="mainContent">
