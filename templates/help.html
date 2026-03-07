@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}Help & Docs{% endblock %}
+{% block page_title %}Help & Documentation{% endblock %}
+
+{% block head_extra %}
+<style>
+.help-grid { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; align-items: start; }
+@media (max-width: 900px) { .help-grid { grid-template-columns: 1fr; } }
+.help-toc { position: sticky; top: 1.5rem; }
+.help-toc a { display: block; padding: .4rem .75rem; border-radius: 8px; font-size: .88rem; color: var(--muted); text-decoration: none; transition: all .15s; }
+.help-toc a:hover, .help-toc a.active { background: var(--primary)18; color: var(--primary); }
+.help-toc .toc-section { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: .75rem .75rem .25rem; font-weight: 600; }
+.help-section { margin-bottom: 3rem; }
+.help-section h2 { font-size: 1.35rem; margin: 0 0 1rem; padding-bottom: .5rem; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: .6rem; }
+.help-section h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; color: var(--text); }
+.help-section p, .help-section li { font-size: .92rem; line-height: 1.7; color: var(--muted); }
+.help-section ul, .help-section ol { padding-left: 1.4rem; }
+.help-section code { background: var(--code-bg); padding: .1rem .4rem; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: .82rem; color: #e879f9; }
+.help-section pre { background: var(--code-bg); border-radius: 10px; padding: 1rem 1.25rem; font-family: 'JetBrains Mono', monospace; font-size: .82rem; overflow-x: auto; line-height: 1.65; }
+.help-section pre code { background: none; padding: 0; color: #d4d4d4; }
+.tip-box { background: var(--primary)12; border-left: 3px solid var(--primary); border-radius: 0 10px 10px 0; padding: .75rem 1rem; margin: 1rem 0; font-size: .88rem; }
+.tip-box strong { color: var(--primary); }
+.warn-box { background: #f59e0b18; border-left: 3px solid #f59e0b; border-radius: 0 10px 10px 0; padding: .75rem 1rem; margin: 1rem 0; font-size: .88rem; }
+.warn-box strong { color: #f59e0b; }
+.type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin: 1rem 0; }
+.type-help-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .75rem 1rem; font-size: .84rem; }
+.type-help-card .th { font-size: 1.3rem; margin-bottom: .25rem; }
+.type-help-card strong { display: block; margin-bottom: .2rem; }
+.type-help-card span { color: var(--muted); }
+.step-list { counter-reset: step; list-style: none; padding: 0; }
+.step-list li { counter-increment: step; display: flex; gap: .75rem; margin-bottom: 1rem; align-items: flex-start; }
+.step-list li::before { content: counter(step); min-width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: .82rem; font-weight: 700; flex-shrink: 0; margin-top: .1rem; }
+.step-list li div strong { display: block; margin-bottom: .2rem; }
+.step-list li div span { font-size: .87rem; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="help-grid">
+  <!-- ── Table of Contents ── -->
+  <nav class="help-toc card" style="padding: 1rem;">
+    <div style="font-weight:700; margin-bottom:.75rem; padding: 0 .5rem;">📖 Contents</div>
+    <div class="toc-section">Getting Started</div>
+    <a href="#quickstart">Quick Start</a>
+    <a href="#requirements">Requirements</a>
+    <a href="#docker">Docker Install</a>
+    <div class="toc-section">Using OwnAI</div>
+    <a href="#build">1 · Build Your AI</a>
+    <a href="#datasets">2 · Add Datasets</a>
+    <a href="#train">3 · Train</a>
+    <a href="#run">4 · Run &amp; Chat</a>
+    <a href="#export">5 · Export Model</a>
+    <div class="toc-section">Reference</div>
+    <a href="#aitypes">AI Types</a>
+    <a href="#capabilities">Capabilities</a>
+    <a href="#config">Configuration</a>
+    <a href="#faq">FAQ</a>
+    <div class="toc-section">Community</div>
+    <a href="#ecosystem">Ecosystem &amp; Resources</a>
+  </nav>
+
+  <!-- ── Content ── -->
+  <div>
+
+    <!-- Quick Start -->
+    <section class="help-section" id="quickstart">
+      <h2>🚀 Quick Start</h2>
+      <ol class="step-list">
+        <li><div><strong>Clone the repo</strong><span>Download OwnAI to your machine.</span></div></li>
+        <li><div><strong>Run setup</strong><span>On Linux/macOS: <code>bash setup.sh</code> &nbsp;·&nbsp; On Windows: double-click <code>setup.bat</code></span></div></li>
+        <li><div><strong>Start the app</strong><span><code>python app.py</code> then open <a href="http://localhost:5000" target="_blank">http://localhost:5000</a></span></div></li>
+        <li><div><strong>Build your first AI</strong><span>Click <strong>Build AI</strong> in the sidebar, pick a type and follow the wizard.</span></div></li>
+      </ol>
+      <div class="tip-box">
+        <strong>💡 Tip:</strong> First-time setup installs all Python dependencies automatically.
+        A GPU isn't required — everything runs on CPU too (training will be slower).
+      </div>
+      <h3>Manual install</h3>
+      <pre><code>git clone https://github.com/HRnewcoll/ownai.git
+cd ownai
+python -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python app.py</code></pre>
+    </section>
+
+    <!-- Requirements -->
+    <section class="help-section" id="requirements">
+      <h2>📋 Requirements</h2>
+      <ul>
+        <li><strong>Python 3.10+</strong> — check with <code>python --version</code></li>
+        <li><strong>8 GB RAM</strong> minimum; 16 GB+ recommended for 7B+ parameter models</li>
+        <li><strong>NVIDIA GPU + CUDA</strong> (optional but strongly recommended for training speed)</li>
+        <li><strong>~10 GB disk space</strong> for base model downloads</li>
+      </ul>
+      <div class="warn-box">
+        <strong>⚠️ Large models:</strong> Models like Llama-3 8B or Mistral 7B require at least 16 GB RAM (or 8 GB VRAM + 4-bit quantization). Smaller models like Phi-2 run fine on 8 GB RAM.
+      </div>
+    </section>
+
+    <!-- Docker -->
+    <section class="help-section" id="docker">
+      <h2>🐳 Docker Install</h2>
+      <p>Docker is the easiest way to deploy OwnAI on any server.</p>
+      <pre><code># Build and start (CPU mode)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down</code></pre>
+      <p>Models and datasets are stored in <code>./models_dir</code> and <code>./uploads</code> on the host, so they persist across restarts.</p>
+      <div class="tip-box">
+        <strong>💡 GPU with Docker:</strong> Install <code>nvidia-container-toolkit</code> on the host, then uncomment the GPU section in <code>docker-compose.yml</code>.
+      </div>
+    </section>
+
+    <!-- Build -->
+    <section class="help-section" id="build">
+      <h2>🔨 1 · Build Your AI</h2>
+      <p>The <strong>Build AI</strong> wizard guides you through five steps:</p>
+      <ol>
+        <li><strong>Choose AI Type</strong> — Search or browse 28 types across 6 categories. Use the custom type and describe your niche in plain English — OwnAI will auto-select the right training template.</li>
+        <li><strong>Pick Base Model</strong> — Select a pre-trained model to fine-tune. Smaller models (Phi-2, DistilBERT) train faster; larger ones produce better results.</li>
+        <li><strong>Set Capabilities</strong> — Enable web search, voice, reasoning, multimodal, or PC control.</li>
+        <li><strong>Configure Training</strong> — LoRA (fast, low memory) or full fine-tuning. Set epochs, batch size and learning rate.</li>
+        <li><strong>Review &amp; Create</strong> — Confirm settings and click <em>Create AI</em>.</li>
+      </ol>
+    </section>
+
+    <!-- Datasets -->
+    <section class="help-section" id="datasets">
+      <h2>📂 2 · Add Datasets</h2>
+      <p>Go to <strong>Datasets</strong> in the sidebar to add training data. Three sources are supported:</p>
+      <ul>
+        <li><strong>File Upload</strong> — <code>.txt</code>, <code>.csv</code>, <code>.jsonl</code>, <code>.json</code>, images, PDFs</li>
+        <li><strong>HuggingFace Hub</strong> — Search and link any of the 100,000+ public datasets (e.g. <code>tatsu-lab/alpaca</code>)</li>
+        <li><strong>Web Scrape</strong> — Enter URLs; OwnAI will fetch and extract text for training</li>
+      </ul>
+      <div class="tip-box">
+        <strong>💡 Format tip:</strong> JSONL files work best. Each line should be <code>{"text": "your training example"}</code>.
+      </div>
+    </section>
+
+    <!-- Train -->
+    <section class="help-section" id="train">
+      <h2>⚡ 3 · Train</h2>
+      <p>From <strong>My Models</strong>, click <em>Train</em> next to your model. Then click <strong>Start Training</strong>.</p>
+      <ul>
+        <li>Training runs in the background — live logs stream to the page in real time.</li>
+        <li>The generated training script is visible via the <em>View Script</em> button — you can copy and run it on any machine.</li>
+        <li>Status updates automatically: <em>draft → training → ready</em> (or <em>failed</em>).</li>
+        <li>Training can be stopped at any time.</li>
+      </ul>
+      <div class="warn-box">
+        <strong>⚠️ First run:</strong> The first epoch will take longer as HuggingFace downloads the base model weights (~1–30 GB depending on model size).
+      </div>
+    </section>
+
+    <!-- Run -->
+    <section class="help-section" id="run">
+      <h2>💬 4 · Run &amp; Chat</h2>
+      <p>Once status is <em>ready</em>, click <strong>Run</strong>. The interface adapts to your AI type:</p>
+      <ul>
+        <li><strong>Text / Chat models</strong> — Chat interface with optional voice input</li>
+        <li><strong>Vision models</strong> — Image upload + analysis</li>
+        <li><strong>Audio / Speech models</strong> — Audio file upload</li>
+        <li><strong>Data / Trading models</strong> — Guided prediction inputs</li>
+        <li><strong>Agentic models</strong> — Additional tool panel (web search, file access, commands)</li>
+      </ul>
+      <p>You can also use <strong>Quick Prompts</strong> from the sidebar to send common requests instantly.</p>
+    </section>
+
+    <!-- Export -->
+    <section class="help-section" id="export">
+      <h2>📦 5 · Export Model</h2>
+      <p>Download your trained model weights and configuration as a zip file from the <em>Train</em> page using the <strong>Download Model</strong> button.</p>
+      <p>The zip contains:</p>
+      <ul>
+        <li><code>train.py</code> — the generated training script</li>
+        <li><code>ownai_config.json</code> — your model configuration</li>
+        <li><code>training.log</code> — full training log</li>
+        <li>Model checkpoint files (once training is complete)</li>
+      </ul>
+      <p>You can load the exported checkpoint on any machine using the standard HuggingFace API.</p>
+    </section>
+
+    <!-- AI Types -->
+    <section class="help-section" id="aitypes">
+      <h2>🤖 AI Types</h2>
+      {% for cat_key, cat in ai_categories.items() %}
+      <h3>{{ cat.icon }} {{ cat.label }}</h3>
+      <div class="type-grid">
+        {% for type_key, at in ai_types.items() if at.category == cat_key %}
+        <div class="type-help-card">
+          <div class="th">{{ at.icon }}</div>
+          <strong>{{ at.label }}</strong>
+          <span>{{ at.example_use_cases[0] if at.example_use_cases else '' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </section>
+
+    <!-- Capabilities -->
+    <section class="help-section" id="capabilities">
+      <h2>⚙️ Capabilities</h2>
+      <ul>
+        <li><strong>🌐 Web Search</strong> — DuckDuckGo integration; use <code>/search &lt;query&gt;</code> in chat</li>
+        <li><strong>💻 PC Control</strong> — File read/write, directory listing, shell commands (sandboxed)</li>
+        <li><strong>🎤 Voice Input</strong> — Browser Web Speech API (Chrome required)</li>
+        <li><strong>🖼️ Multimodal</strong> — Process text + images together</li>
+        <li><strong>🧠 Reasoning</strong> — Chain-of-thought, step-by-step thinking</li>
+        <li><strong>🔧 Function Calling</strong> — Structured tool use and JSON output</li>
+      </ul>
+    </section>
+
+    <!-- Config -->
+    <section class="help-section" id="config">
+      <h2>🔧 Configuration</h2>
+      <p>Copy <code>.env.example</code> to <code>.env</code> and edit it. All settings are optional:</p>
+      <table class="config-table" style="width:100%;border-collapse:collapse;">
+        <tr style="background:var(--surface-2);"><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Variable</th><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Default</th><th style="padding:.5rem .75rem;text-align:left;font-size:.82rem;">Description</th></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>SECRET_KEY</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">random</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">Flask session secret — set a fixed value in production</td></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>PORT</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">5000</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">HTTP port to listen on</td></tr>
+        <tr><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;"><code>HUGGINGFACE_HUB_TOKEN</code></td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">—</td><td style="padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.84rem;">HF token for gated models (Llama, Gemma)</td></tr>
+        <tr><td style="padding:.5rem .75rem;font-size:.84rem;"><code>CUDA_VISIBLE_DEVICES</code></td><td style="padding:.5rem .75rem;font-size:.84rem;">0</td><td style="padding:.5rem .75rem;font-size:.84rem;">GPU index; set to -1 for CPU only</td></tr>
+      </table>
+    </section>
+
+    <!-- FAQ -->
+    <section class="help-section" id="faq">
+      <h2>❓ FAQ</h2>
+
+      <h3>Do I need a GPU?</h3>
+      <p>No — CPU-only training works for all model types, but it's much slower. A mid-range NVIDIA GPU (8 GB VRAM) makes training practical. For large models (7B+) use 4-bit quantization (QLoRA).</p>
+
+      <h3>How do I use a gated model like Llama or Gemma?</h3>
+      <p>Accept the model's license on HuggingFace, then set <code>HUGGINGFACE_HUB_TOKEN=hf_...</code> in your <code>.env</code> file.</p>
+
+      <h3>Can I train on custom image / audio data?</h3>
+      <p>Yes — upload image or audio files via the Datasets page. They'll be used by the vision / audio training scripts automatically.</p>
+
+      <h3>Where are my models saved?</h3>
+      <p>In the <code>models_dir/</code> folder inside the project directory. Each model gets its own subfolder containing the checkpoint, config and training script.</p>
+
+      <h3>How do I run OwnAI on a server / in the cloud?</h3>
+      <p>Use Docker Compose. Set <code>PORT</code>, <code>SECRET_KEY</code>, and optionally a reverse-proxy like nginx for HTTPS. See the <a href="#docker">Docker Install</a> section above.</p>
+
+      <h3>My training says "failed" — what do I do?</h3>
+      <p>Check the training log for error messages. Common causes: missing dependencies (run <code>pip install -r requirements.txt</code> again), out-of-memory (reduce batch size or use QLoRA), or a missing dataset.</p>
+    </section>
+
+    <!-- Ecosystem -->
+    <section class="help-section" id="ecosystem">
+      <h2>🌐 Ecosystem &amp; Resources</h2>
+      <p>OwnAI is built on top of the open-source ML ecosystem. Here are curated resources organised by category to help you go deeper.</p>
+
+      <h3>🏗️ Core ML Frameworks</h3>
+      <p>The engine powering everything OwnAI trains:</p>
+      <ul>
+        <li><a href="https://github.com/pytorch/pytorch" target="_blank"><strong>PyTorch</strong></a> — Dynamic neural networks with GPU acceleration (the backbone of OwnAI training)</li>
+        <li><a href="https://github.com/huggingface/transformers" target="_blank"><strong>🤗 Transformers</strong></a> — All the pre-trained models OwnAI uses (BERT, GPT, T5, ViT, Whisper...)</li>
+        <li><a href="https://github.com/huggingface/datasets" target="_blank"><strong>🤗 Datasets</strong></a> — The hub OwnAI links to for 100,000+ training datasets</li>
+        <li><a href="https://github.com/tensorflow/tensorflow" target="_blank"><strong>TensorFlow</strong></a> — Google's ML framework, excellent for production deployment</li>
+        <li><a href="https://github.com/keras-team/keras" target="_blank"><strong>Keras</strong></a> — High-level neural network API, great for beginners</li>
+        <li><a href="https://github.com/scikit-learn/scikit-learn" target="_blank"><strong>scikit-learn</strong></a> — Classic ML algorithms (used in OwnAI's data/analytics scripts)</li>
+        <li><a href="https://github.com/dmlc/xgboost" target="_blank"><strong>XGBoost</strong></a> — Gradient boosting (used in OwnAI's tabular/forecasting scripts)</li>
+        <li><a href="https://github.com/Lightning-AI/pytorch-lightning" target="_blank"><strong>PyTorch Lightning</strong></a> — Fine-tune any model on 1 to 10,000+ GPUs with zero code changes</li>
+        <li><a href="https://github.com/deepspeedai/DeepSpeed" target="_blank"><strong>DeepSpeed</strong></a> — Distributed training optimisation for large models</li>
+        <li><a href="https://github.com/fastai/fastai" target="_blank"><strong>fastai</strong></a> — Practical deep learning library built on PyTorch</li>
+      </ul>
+
+      <h3>🧠 LLM Training &amp; Fine-Tuning</h3>
+      <ul>
+        <li><a href="https://github.com/NamelyCorp/NamelyCorp-LLM-Studio" target="_blank"><strong>NamelyCorp LLM Studio</strong></a> — Local-first LoRA fine-tuning web UI (similar to OwnAI's approach)</li>
+        <li><a href="https://github.com/SourceBox-LLC/FineFoundry" target="_blank"><strong>FineFoundry</strong></a> — Self-hosted pipeline for dataset creation and LLM fine-tuning</li>
+        <li><a href="https://github.com/MarkusAureus/ai-model-training-center-webui" target="_blank"><strong>AI Training Center WebUI</strong></a> — Scalable self-hosted web UI for QLoRA fine-tuning</li>
+        <li><a href="https://github.com/yigit631/NexaAITrainer" target="_blank"><strong>NexaAI Trainer</strong></a> — Local, completely private web-based LLM fine-tuning</li>
+        <li><a href="https://github.com/nickyeganeh/ai-training-tool" target="_blank"><strong>ai-training-tool</strong></a> — Web application for training and customising Ollama LLM models</li>
+        <li><a href="https://github.com/sandseb123/local-lora-cookbook" target="_blank"><strong>Local LoRA Cookbook</strong></a> — Fine-tune a local LLM on your own data in 15 minutes</li>
+        <li><a href="https://github.com/wxhcore/bumblecore" target="_blank"><strong>BumbleCore</strong></a> — Training framework: Pretraining → SFT → RLHF/DPO end-to-end</li>
+        <li><a href="https://github.com/mlflow/mlflow" target="_blank"><strong>MLflow</strong></a> — Track, version, and evaluate your AI training runs</li>
+        <li><a href="https://github.com/rasbt/LLMs-from-scratch" target="_blank"><strong>LLMs from Scratch</strong></a> — Implement a ChatGPT-like LLM in PyTorch from scratch (great for learning)</li>
+      </ul>
+
+      <h3>👁️ Vision &amp; Object Detection</h3>
+      <ul>
+        <li><a href="https://github.com/ultralytics/ultralytics" target="_blank"><strong>Ultralytics YOLO</strong></a> — State-of-the-art object detection (powers OwnAI's Object Detector type)</li>
+        <li><a href="https://github.com/ultralytics/yolov5" target="_blank"><strong>YOLOv5</strong></a> — Fast object detection in PyTorch → ONNX → TFLite</li>
+        <li><a href="https://github.com/roboflow/supervision" target="_blank"><strong>Roboflow Supervision</strong></a> — Reusable computer vision tools for annotations and tracking</li>
+        <li><a href="https://github.com/google-ai-edge/mediapipe" target="_blank"><strong>MediaPipe</strong></a> — Cross-platform ML for live and streaming media (face, pose, hands)</li>
+        <li><a href="https://github.com/openai/CLIP" target="_blank"><strong>CLIP</strong></a> — Zero-shot vision-language model from OpenAI</li>
+        <li><a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose" target="_blank"><strong>OpenPose</strong></a> — Real-time multi-person keypoint detection</li>
+        <li><a href="https://github.com/WizAI-ZH/VisionWiz" target="_blank"><strong>VisionWiz</strong></a> — Open-source tool for model training, data labelling, and model testing</li>
+        <li><a href="https://github.com/SeifBoukerdenna/ModelCub" target="_blank"><strong>ModelCub</strong></a> — Local-first MLOps toolkit for computer-vision models</li>
+      </ul>
+
+      <h3>🎙️ Audio, Speech &amp; NLP</h3>
+      <ul>
+        <li><a href="https://github.com/mozilla/DeepSpeech" target="_blank"><strong>Mozilla DeepSpeech</strong></a> — On-device speech-to-text engine, Raspberry Pi to GPU servers</li>
+        <li><a href="https://github.com/explosion/spaCy" target="_blank"><strong>spaCy</strong></a> — Industrial-strength NLP in Python</li>
+        <li><a href="https://github.com/RasaHQ/rasa" target="_blank"><strong>Rasa</strong></a> — Open-source framework for text and voice-based conversational AI</li>
+        <li><a href="https://github.com/JaidedAI/EasyOCR" target="_blank"><strong>EasyOCR</strong></a> — Ready-to-use OCR with 80+ languages</li>
+        <li><a href="https://github.com/tesseract-ocr/tesseract" target="_blank"><strong>Tesseract OCR</strong></a> — Open-source OCR engine (used in OwnAI Document AI type)</li>
+        <li><a href="https://github.com/deepset-ai/haystack" target="_blank"><strong>Haystack</strong></a> — LLM orchestration framework for RAG, retrieval, and agents</li>
+      </ul>
+
+      <h3>📈 Data, Finance &amp; Trading</h3>
+      <ul>
+        <li><a href="https://github.com/OpenBB-finance/OpenBB" target="_blank"><strong>OpenBB</strong></a> — Financial data platform for analysts, quants and AI agents</li>
+        <li><a href="https://github.com/microsoft/qlib" target="_blank"><strong>Qlib</strong></a> — AI-oriented quant investment platform from Microsoft</li>
+        <li><a href="https://github.com/nautechsystems/nautilus_trader" target="_blank"><strong>Nautilus Trader</strong></a> — High-performance algorithmic trading platform</li>
+        <li><a href="https://github.com/recommenders-team/recommenders" target="_blank"><strong>Microsoft Recommenders</strong></a> — Best practices on recommendation systems</li>
+        <li><a href="https://github.com/shap/shap" target="_blank"><strong>SHAP</strong></a> — Explain any ML model's predictions with game theory</li>
+        <li><a href="https://github.com/alsk1992/CloddsBot" target="_blank"><strong>CloddsBot</strong></a> — Autonomous trading agent across 1000+ markets (Polymarket, Binance, Solana)</li>
+      </ul>
+
+      <h3>🤖 Autonomous Agents &amp; Self-Hosted Platforms</h3>
+      <ul>
+        <li><a href="https://github.com/khoj-ai/khoj" target="_blank"><strong>Khoj</strong></a> — Self-hostable AI second brain; web search + document Q&amp;A + custom agents</li>
+        <li><a href="https://github.com/LAION-AI/Open-Assistant" target="_blank"><strong>OpenAssistant</strong></a> — Chat-based assistant that understands tasks and retrieves info</li>
+        <li><a href="https://github.com/dasirra/openclaw-nas" target="_blank"><strong>OpenClaw NAS</strong></a> — Self-hosted AI agent on Docker with Telegram + Google Workspace</li>
+        <li><a href="https://github.com/TokioAI/tokioai-v1.8" target="_blank"><strong>TokioAI</strong></a> — Autonomous agent framework with 30+ tools for infrastructure control</li>
+        <li><a href="https://github.com/subculture-collective/subcorp" target="_blank"><strong>SubCorp</strong></a> — Self-hosted multi-agent system with 6 AI agents and native tool execution</li>
+        <li><a href="https://github.com/qdrant/qdrant" target="_blank"><strong>Qdrant</strong></a> — High-performance vector database for semantic search and AI memory</li>
+        <li><a href="https://github.com/pathwaycom/llm-app" target="_blank"><strong>LLM App</strong></a> — RAG pipelines always in sync with Google Drive, S3, Kafka, Postgres</li>
+        <li><a href="https://github.com/ItzCrazyKns/Perplexica" target="_blank"><strong>Perplexica</strong></a> — Self-hosted AI-powered answering engine</li>
+      </ul>
+
+      <h3>📦 Model Export, Deployment &amp; Serving</h3>
+      <ul>
+        <li><a href="https://github.com/onnx/onnx" target="_blank"><strong>ONNX</strong></a> — Open standard for ML model interoperability across frameworks</li>
+        <li><a href="https://github.com/microsoft/onnxruntime" target="_blank"><strong>ONNX Runtime</strong></a> — Cross-platform high-performance ML inference</li>
+        <li><a href="https://github.com/lutzroeder/netron" target="_blank"><strong>Netron</strong></a> — Visualise your neural network architecture</li>
+        <li><a href="https://github.com/gradio-app/gradio" target="_blank"><strong>Gradio</strong></a> — Build shareable ML demos in Python in minutes</li>
+        <li><a href="https://github.com/streamlit/streamlit" target="_blank"><strong>Streamlit</strong></a> — Fast way to build and share data apps in Python</li>
+        <li><a href="https://github.com/jina-ai/serve" target="_blank"><strong>Jina</strong></a> — Build multimodal AI applications with cloud-native stack</li>
+        <li><a href="https://github.com/ray-project/ray" target="_blank"><strong>Ray</strong></a> — Distributed AI compute engine for scaling ML workloads</li>
+      </ul>
+
+      <h3>📚 Learning &amp; Courses</h3>
+      <ul>
+        <li><a href="https://github.com/microsoft/ML-For-Beginners" target="_blank"><strong>ML for Beginners</strong></a> — Microsoft's 12-week, 26-lesson classic ML course</li>
+        <li><a href="https://github.com/microsoft/AI-For-Beginners" target="_blank"><strong>AI for Beginners</strong></a> — Microsoft's 12-week, 24-lesson AI course</li>
+        <li><a href="https://github.com/mlabonne/llm-course" target="_blank"><strong>LLM Course</strong></a> — Roadmap and Colab notebooks for getting into LLMs</li>
+        <li><a href="https://github.com/d2l-ai/d2l-en" target="_blank"><strong>Dive into Deep Learning</strong></a> — Interactive book used at 500 universities including Stanford &amp; MIT</li>
+        <li><a href="https://github.com/rasbt/LLMs-from-scratch" target="_blank"><strong>LLMs from Scratch</strong></a> — Implement a GPT from scratch, step by step</li>
+        <li><a href="https://github.com/labmlai/annotated_deep_learning_paper_implementations" target="_blank"><strong>Annotated DL Papers</strong></a> — 60+ paper implementations with side-by-side notes</li>
+        <li><a href="https://github.com/GokuMohandas/Made-With-ML" target="_blank"><strong>Made With ML</strong></a> — Production-grade ML application design, development &amp; deployment</li>
+        <li><a href="https://github.com/patchy631/ai-engineering-hub" target="_blank"><strong>AI Engineering Hub</strong></a> — In-depth LLM, RAG and AI agent tutorials</li>
+        <li><a href="https://github.com/trekhleb/homemade-machine-learning" target="_blank"><strong>Homemade ML</strong></a> — Popular ML algorithms with interactive Jupyter demos</li>
+      </ul>
+
+      <h3>🔬 Domain-Specific Tools</h3>
+      <ul>
+        <li><a href="https://github.com/ageitgey/face_recognition" target="_blank"><strong>face_recognition</strong></a> — World's simplest facial recognition API for Python</li>
+        <li><a href="https://github.com/serengil/deepface" target="_blank"><strong>DeepFace</strong></a> — Lightweight face recognition and facial attribute analysis (age, gender, emotion)</li>
+        <li><a href="https://github.com/photoprism/photoprism" target="_blank"><strong>PhotoPrism</strong></a> — AI-powered self-hosted photos app</li>
+        <li><a href="https://github.com/paperless-ngx/paperless-ngx" target="_blank"><strong>Paperless-ngx</strong></a> — AI document management: scan, index and archive documents</li>
+        <li><a href="https://github.com/Unity-Technologies/ml-agents" target="_blank"><strong>Unity ML-Agents</strong></a> — Train intelligent agents via deep RL in game environments</li>
+        <li><a href="https://github.com/pikpikcu/airecon" target="_blank"><strong>AIRecon</strong></a> — Autonomous cybersecurity agent with self-hosted LLM and Kali sandbox</li>
+        <li><a href="https://github.com/spmallick/learnopencv" target="_blank"><strong>LearnOpenCV</strong></a> — OpenCV tutorials: C++ and Python examples</li>
+        <li><a href="https://github.com/k4yt3x/video2x" target="_blank"><strong>Video2X</strong></a> — ML-based video super resolution and frame interpolation</li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Highlight active TOC item as user scrolls
+const sections = document.querySelectorAll('.help-section');
+const tocLinks = document.querySelectorAll('.help-toc a');
+
+function updateTOC() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  tocLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === `#${current}`);
+  });
+}
+window.addEventListener('scroll', updateTOC, {passive: true});
+updateTOC();
+</script>
+{% endblock %}

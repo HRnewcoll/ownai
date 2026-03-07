@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Train – {{ model.name }}{% endblock %}
+{% block page_title %}Train: {{ model.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+.train-layout { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+@media(max-width:900px){ .train-layout { grid-template-columns:1fr; } }
+.log-box { background:var(--code-bg); border-radius:12px; padding:1rem; font-family:'JetBrains Mono',monospace; font-size:.82rem; height:380px; overflow-y:auto; color:#d4d4d4; white-space:pre-wrap; }
+.log-line { line-height:1.6; }
+.log-line.error { color:#f87171; }
+.log-line.success { color:#4ade80; }
+.config-table { width:100%; border-collapse:collapse; }
+.config-table td { padding:.5rem .75rem; border-bottom:1px solid var(--border); font-size:.88rem; }
+.config-table td:first-child { color:var(--muted); font-weight:500; width:40%; }
+.training-status { display:flex; align-items:center; gap:.75rem; padding:1rem; border-radius:12px; margin-bottom:1rem; }
+.status-indicator { width:12px; height:12px; border-radius:50%; }
+.status-indicator.training { background:#f59e0b; animation:pulse 1.2s infinite; }
+.status-indicator.ready { background:#10b981; }
+.status-indicator.failed { background:#ef4444; }
+.status-indicator.draft { background:#6b7280; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+.progress-bar-wrap { background:var(--border); border-radius:999px; height:8px; overflow:hidden; margin:.5rem 0; }
+.progress-bar-fill { height:100%; background:linear-gradient(90deg,var(--primary),#8b5cf6); border-radius:999px; transition:width .4s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="training-status">
+  <div class="status-indicator {{ model.status }}" id="statusDot"></div>
+  <div>
+    <strong id="statusText">{{ model.status | capitalize }}</strong>
+    <div style="font-size:.82rem;color:var(--muted);">
+      {% if model.training_started_at %}Started: {{ model.training_started_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+      {% if model.training_finished_at %} · Finished: {{ model.training_finished_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+    </div>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap;">
+    {% if model.status == 'ready' %}
+    <a href="{{ url_for('run_page', model_id=model.id) }}" class="btn btn-primary">
+      <i class="fas fa-play"></i> Run Model
+    </a>
+    <a href="{{ url_for('api_export_model', model_id=model.id) }}" class="btn btn-outline" title="Download model weights as zip">
+      <i class="fas fa-download"></i> Download Model
+    </a>
+    {% endif %}
+    <button id="startBtn" class="btn btn-success" onclick="startTraining({{ model.id }})" {% if is_running %}style="display:none"{% endif %}>
+      <i class="fas fa-play"></i> Start Training
+    </button>
+    <button id="stopBtn" class="btn btn-danger" onclick="stopTraining({{ model.id }})" {% if not is_running %}style="display:none"{% endif %}>
+      <i class="fas fa-stop"></i> Stop Training
+    </button>
+    <button class="btn btn-outline" onclick="loadScript({{ model.id }})">
+      <i class="fas fa-code"></i> View Script
+    </button>
+  </div>
+</div>
+
+<div class="train-layout">
+  <!-- Left: config & datasets -->
+  <div>
+    <!-- Model config -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-header"><h3><i class="fas fa-info-circle"></i> Configuration</h3></div>
+      <div class="card-body" style="padding:0;">
+        <table class="config-table">
+          <tr><td>AI Type</td><td>{{ ai_types.get(model.ai_type, {}).get('label', model.ai_type) }}</td></tr>
+          <tr><td>Base Model</td><td><code>{{ model.config.get('base_model','—') }}</code></td></tr>
+          <tr><td>Fine-tune Method</td><td>{{ model.config.get('fine_tune_method','—') | upper }}</td></tr>
+          <tr><td>Epochs</td><td>{{ model.config.get('epochs','—') }}</td></tr>
+          <tr><td>Batch Size</td><td>{{ model.config.get('batch_size','—') }}</td></tr>
+          <tr><td>Learning Rate</td><td>{{ model.config.get('learning_rate','—') }}</td></tr>
+          <tr><td>Max Seq Len</td><td>{{ model.config.get('max_seq_len','—') }}</td></tr>
+          <tr><td>Content Policy</td><td>{{ model.config.get('content_policy','standard') | capitalize }}</td></tr>
+          <tr><td>Agentic</td><td>{{ '✅ Enabled' if model.config.get('agentic') else '❌ Disabled' }}</td></tr>
+          <tr><td>Capabilities</td><td>{{ model.config.get('capabilities',[]) | join(', ') or '—' }}</td></tr>
+          <tr><td>Output Dir</td><td style="font-size:.75rem;word-break:break-all;"><code>{{ model.output_dir }}</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Dataset configuration -->
+    <div class="card">
+      <div class="card-header"><h3><i class="fas fa-database"></i> Datasets</h3></div>
+      <div class="card-body">
+        {% if model.config.get('hf_dataset') %}
+        <div class="badge-row">
+          <span class="badge badge-blue"><i class="fas fa-cloud"></i> HF: {{ model.config.hf_dataset }}</span>
+        </div>
+        {% endif %}
+        {% if datasets %}
+        <div style="margin-top:.75rem;">
+          {% for ds in datasets %}
+          <div class="dataset-row">
+            <span>{{ ds.name }}</span>
+            <span class="badge badge-{{ 'blue' if ds.source == 'hf' else 'green' if ds.source == 'web' else 'gray' }}">{{ ds.source }}</span>
+            <span style="font-size:.78rem;color:var(--muted);">{{ (ds.size_bytes / 1024)|round(1) }} KB</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted" style="font-size:.88rem;">
+          No datasets linked. <a href="{{ url_for('datasets_page') }}">Upload datasets →</a>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Training log -->
+  <div>
+    <div class="card" style="height:100%;">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3><i class="fas fa-terminal"></i> Training Log</h3>
+        <button class="btn btn-outline btn-xs" onclick="clearLog()">Clear</button>
+      </div>
+      <!-- Epoch progress (shown during training) -->
+      <div id="epochProgress" class="epoch-progress" style="padding:.75rem 1rem .25rem; display:none;">
+        <div class="epoch-label">
+          <span id="epochText">Epoch 0 / ?</span>
+          <span id="epochPct">0%</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="epochBar" style="width:0%"></div></div>
+      </div>
+      <div class="card-body" style="padding:.75rem;">
+        <div class="log-box" id="logBox">
+          {% for line in log_lines %}
+          <div class="log-line {% if 'error' in line.lower() or 'exception' in line.lower() %}error{% elif 'saved' in line.lower() or 'complete' in line.lower() %}success{% endif %}">{{ line }}</div>
+          {% endfor %}
+          {% if not log_lines %}
+          <div class="log-line" style="color:var(--muted);">Waiting for training to start...</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Script modal -->
+<div class="modal" id="scriptModal" style="display:none;">
+  <div class="modal-backdrop" onclick="closeModal('scriptModal')"></div>
+  <div class="modal-box" style="max-width:800px;width:95%;">
+    <div class="modal-header">
+      <h3><i class="fas fa-code"></i> Generated Training Script</h3>
+      <button onclick="closeModal('scriptModal')" class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <pre id="scriptContent" style="background:var(--code-bg);padding:1rem;border-radius:8px;overflow:auto;max-height:500px;font-size:.8rem;"></pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MODEL_ID = {{ model.id }};
+const socket = io();
+
+socket.on('connect', () => {
+  socket.emit('join_training', {model_id: MODEL_ID});
+});
+
+socket.on('training_history', data => {
+  if (data.model_id === MODEL_ID) {
+    const box = document.getElementById('logBox');
+    box.innerHTML = '';
+    (data.lines || []).forEach(appendLog);
+  }
+});
+
+socket.on('training_log', data => {
+  if (data.model_id === MODEL_ID) appendLog(data.line);
+});
+
+socket.on('training_complete', data => {
+  if (data.model_id === MODEL_ID) {
+    appendLog(`\n✅ Training ${data.success ? 'completed successfully' : 'FAILED'}`);
+    document.getElementById('startBtn').style.display = '';
+    document.getElementById('stopBtn').style.display = 'none';
+    refreshStatus();
+  }
+});
+
+function appendLog(line) {
+  const box = document.getElementById('logBox');
+  const div = document.createElement('div');
+  div.className = 'log-line' +
+    (/error|exception/i.test(line) ? ' error' :
+     /saved|complete/i.test(line) ? ' success' : '');
+  div.textContent = line;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  // Parse epoch progress from log lines like:
+  //   [OwnAI] Epoch 2/5  or  {'epoch': 2, 'loss': 0.3}  or  Epoch 2/5:
+  const epochMatch = line.match(/epoch\s+(\d+)\s*[/\\]\s*(\d+)/i)
+    || line.match(/"epoch"\s*:\s*(\d+(?:\.\d+)?)/i);
+  if (epochMatch) {
+    const cur = parseFloat(epochMatch[1]);
+    const total = epochMatch[2] ? parseInt(epochMatch[2], 10) : null;
+    const progressEl = document.getElementById('epochProgress');
+    if (progressEl) {
+      progressEl.style.display = 'block';
+      document.getElementById('epochText').textContent =
+        total ? `Epoch ${Math.round(cur)} / ${total}` : `Epoch ${Math.round(cur)}`;
+      if (total) {
+        const pct = Math.min(100, Math.round((cur / total) * 100));
+        document.getElementById('epochPct').textContent = `${pct}%`;
+        document.getElementById('epochBar').style.width = `${pct}%`;
+      }
+    }
+  }
+}
+
+function clearLog() {
+  document.getElementById('logBox').innerHTML = '';
+}
+
+function startTraining(id) {
+  fetch(`/api/train/${id}/start`, {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      if (d.success) {
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('stopBtn').style.display = '';
+        appendLog('[OwnAI] Training started...');
+        updateStatusDot('training');
+      } else {
+        appendLog(`[Error] ${d.error}`);
+      }
+    });
+}
+
+function stopTraining(id) {
+  fetch(`/api/train/${id}/stop`, {method: 'POST'})
+    .then(r => r.json()).then(d => {
+      document.getElementById('startBtn').style.display = '';
+      document.getElementById('stopBtn').style.display = 'none';
+      appendLog('[OwnAI] Training stopped.');
+      updateStatusDot('draft');
+    });
+}
+
+function loadScript(id) {
+  fetch(`/api/models/${id}/script`)
+    .then(r => r.json()).then(d => {
+      document.getElementById('scriptContent').textContent = d.script || d.error;
+      document.getElementById('scriptModal').style.display = 'flex';
+    });
+}
+
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+function updateStatusDot(status) {
+  const dot = document.getElementById('statusDot');
+  dot.className = `status-indicator ${status}`;
+  document.getElementById('statusText').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function refreshStatus() {
+  fetch(`/api/train/${MODEL_ID}/status`)
+    .then(r => r.json()).then(d => {
+      updateStatusDot(d.status);
+    });
+}
+
+// Poll status every 5s
+setInterval(refreshStatus, 5000);
+</script>
+{% endblock %}
