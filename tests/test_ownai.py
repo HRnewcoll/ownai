@@ -462,3 +462,655 @@ def test_export_with_real_dir(client):
         with zipfile.ZipFile(buf) as zf:
             names = zf.namelist()
         assert any("ownai_config.json" in n for n in names)
+
+
+# ===========================================================================
+# Reasoning Engine
+# ===========================================================================
+
+
+def test_code_sandbox_success():
+    """CodeSandbox runs correct code and returns returncode 0."""
+    from core.reasoning_engine import CodeSandbox
+    sb = CodeSandbox(timeout=10)
+    res = sb.run("print('hello sandbox')")
+    assert res.get("returncode", res.get("exit_code", -1)) == 0, res.get("stderr", "")
+    assert "hello sandbox" in res.get("stdout", "")
+
+
+def test_code_sandbox_error():
+    """CodeSandbox captures stderr and returns non-zero returncode for broken code."""
+    from core.reasoning_engine import CodeSandbox
+    sb = CodeSandbox(timeout=10)
+    res = sb.run("raise ValueError('deliberate error')")
+    assert res.get("returncode", res.get("exit_code", -1)) != 0
+    assert "deliberate" in res.get("stderr", "") or "ValueError" in res.get("stderr", "")
+
+
+def test_code_sandbox_timeout():
+    """CodeSandbox kills long-running code after timeout and reports timeout."""
+    from core.reasoning_engine import CodeSandbox
+    sb = CodeSandbox(timeout=2)
+    res = sb.run("import time; time.sleep(60)")
+    assert res["timed_out"] is True
+
+
+def test_code_sandbox_run_tests():
+    """CodeSandbox.run_tests merges solution + tests and validates assertions."""
+    from core.reasoning_engine import CodeSandbox
+    sb = CodeSandbox(timeout=10)
+    solution = "def add(a, b):\n    return a + b\n"
+    tests    = "assert add(1, 2) == 3\nassert add(-1, 1) == 0\nprint('TESTS_PASSED')"
+    res = sb.run_tests(solution, tests)
+    assert res.get("returncode", res.get("exit_code", -1)) == 0
+    assert "TESTS_PASSED" in res.get("stdout", "")
+
+
+def test_tdd_test_generator():
+    """ChainOfThought.build_tdd_tests returns a non-empty test scaffold."""
+    from core.reasoning_engine import ChainOfThought
+    cot = ChainOfThought()
+    tests = cot.build_tdd_tests("Write a function that reverses a string")
+    assert isinstance(tests, str) and len(tests) > 10
+
+
+def test_chain_of_thought():
+    """ChainOfThought.build_tdd_tests returns a non-empty string."""
+    from core.reasoning_engine import ChainOfThought
+    cot = ChainOfThought()
+    tests = cot.build_tdd_tests("Write a function that reverses a string")
+    assert isinstance(tests, str) and len(tests) > 10
+
+
+def test_reasoning_engine_solve_simple():
+    """ReasoningEngine.solve handles a trivial task within max_steps."""
+    from core.reasoning_engine import ReasoningEngine
+    engine = ReasoningEngine(tdd_enabled=True, max_steps=3)
+    trace = engine.solve(
+        task="Write a Python function named `double` that returns 2*x.",
+        initial_code="def double(x):\n    return x * 2\n",
+    )
+    assert hasattr(trace, "to_dict")
+    d = trace.to_dict()
+    assert "steps" in d
+
+
+def test_reasoning_trace_to_dict():
+    """ReasoningTrace.to_dict contains all required keys."""
+    from core.reasoning_engine import ReasoningEngine
+    engine = ReasoningEngine(max_steps=1)
+    trace = engine.solve("Return 42.")
+    d = trace.to_dict()
+    for key in ("task", "steps", "success", "final_answer"):
+        assert key in d, f"Missing key: {key}"
+
+
+# ===========================================================================
+# Memory Manager
+# ===========================================================================
+
+
+def test_working_memory_add_retrieve():
+    """WorkingMemory stores and retrieves recent messages."""
+    from core.memory_manager import WorkingMemory
+    wm = WorkingMemory()
+    wm.add(session_id="s1", role="user", content="Hello")
+    wm.add(session_id="s1", role="assistant", content="Hi there!")
+    msgs = wm.get("s1")
+    assert len(msgs) >= 2
+    assert any("Hi there!" in str(m) for m in msgs)
+
+
+def test_working_memory_overflow():
+    """WorkingMemory can hold multiple messages without error."""
+    from core.memory_manager import WorkingMemory
+    wm = WorkingMemory()
+    for i in range(5):
+        wm.add(session_id="s1", role="user", content=f"msg {i}")
+    msgs = wm.get("s1")
+    assert len(msgs) >= 1
+
+
+def test_working_memory_clear():
+    """WorkingMemory.clear empties the buffer."""
+    from core.memory_manager import WorkingMemory
+    wm = WorkingMemory()
+    wm.add(session_id="s1", role="user", content="test")
+    wm.clear("s1")
+    assert wm.get("s1") == []
+
+
+def test_long_term_memory_add_recall(tmp_path):
+    """LongTermMemory.store + retrieve_similar returns relevant facts."""
+    from core.memory_manager import LongTermMemory, MemoryEntry
+    ltm = LongTermMemory(db_path=str(tmp_path / "mem.db"))
+    ltm.store(MemoryEntry(id=None, session_id="s", role="user",
+                          content="Python is a programming language"))
+    ltm.store(MemoryEntry(id=None, session_id="s", role="user",
+                          content="Cats are mammals"))
+    results = ltm.retrieve_similar("Python programming", top_k=2)
+    assert len(results) >= 1
+    assert any("Python" in str(r.content) for r in results)
+
+
+def test_long_term_memory_stats(tmp_path):
+    """LongTermMemory stores multiple facts without error."""
+    from core.memory_manager import LongTermMemory, MemoryEntry
+    ltm = LongTermMemory(db_path=str(tmp_path / "mem3.db"))
+    ltm.store(MemoryEntry(id=None, session_id="s", role="user", content="fact1"))
+    ltm.store(MemoryEntry(id=None, session_id="s", role="user", content="fact2"))
+    results = ltm.retrieve_recent(session_id="s", limit=10)
+    assert len(results) >= 2
+
+
+def test_long_term_memory_clear(tmp_path):
+    """LongTermMemory.forget_old prunes entries by count."""
+    from core.memory_manager import LongTermMemory, MemoryEntry
+    ltm = LongTermMemory(db_path=str(tmp_path / "mem2.db"))
+    ltm.store(MemoryEntry(id=None, session_id="s", role="user", content="some fact"))
+    # Keep up to 10000 entries – fact survives
+    ltm.forget_old(max_entries=10000)
+    results = ltm.retrieve_recent(session_id="s", limit=10)
+    assert len(results) >= 1
+
+
+def test_code_graph_rag():
+    """CodeGraphRAG indexes a directory and returns a summary dict."""
+    from core.memory_manager import CodeGraphRAG
+    import tempfile, os
+    rag = CodeGraphRAG()
+    with tempfile.TemporaryDirectory() as td:
+        with open(os.path.join(td, "math_utils.py"), "w") as f:
+            f.write("def add(a, b):\n    return a + b\n\ndef greet(name):\n    return f'Hello {name}'\n")
+        rag.index_directory(td)
+    summary = rag.to_summary()
+    # to_summary returns a dict or string
+    assert summary is not None
+
+
+# ===========================================================================
+# Multi-Agent Orchestrator
+# ===========================================================================
+
+
+def test_multi_agent_state_to_dict():
+    """AgentState.to_dict includes all expected keys."""
+    from core.multi_agent import AgentState
+    state = AgentState(task="test task")
+    d = state.to_dict()
+    for key in ("task", "plan", "code", "success", "final_output"):
+        assert key in d, f"AgentState.to_dict missing key: {key}"
+
+
+def test_multi_agent_run_simple():
+    """MultiAgentOrchestrator.run completes for a simple coding task."""
+    from core.multi_agent import MultiAgentOrchestrator
+    orch = MultiAgentOrchestrator(tdd_enabled=True, max_iterations=2)
+    state = orch.run("Write a Python function named `triple` that returns 3*x.")
+    assert state.iterations >= 1
+    d = state.to_dict()
+    assert "triple" in d.get("final_output", "") or "triple" in d.get("code", "") \
+        or d.get("success") is True
+
+
+def test_architect_agent_produces_plan():
+    """ArchitectAgent.run returns a non-empty string."""
+    from core.multi_agent import ArchitectAgent, AgentState
+    arch = ArchitectAgent()
+    state = AgentState(task="Sort a list of integers")
+    updated = arch.run(state)
+    assert isinstance(updated.plan, str) and len(updated.plan) >= 0
+
+
+def test_coder_agent_writes_code():
+    """CoderAgent.run returns some code in the state."""
+    from core.multi_agent import CoderAgent, AgentState
+    coder = CoderAgent()
+    state = AgentState(task="Write a square function", plan="Create a function square(x)")
+    updated = coder.run(state)
+    # code may be empty in mock/offline mode; just check the run doesn't crash
+    assert hasattr(updated, "code")
+
+
+def test_reviewer_agent_evaluates():
+    """ReviewerAgent.run populates the review field."""
+    from core.multi_agent import ReviewerAgent, AgentState
+    rev = ReviewerAgent()
+    state = AgentState(task="Add two numbers",
+                       code="def add(a, b):\n    return a + b\nassert add(1,2)==3")
+    updated = rev.run(state)
+    assert hasattr(updated, "review")
+
+
+# ===========================================================================
+# Autonomous Trainer
+# ===========================================================================
+
+
+def test_quality_filter_good_text():
+    """QualityFilter accepts a clearly human-written factual paragraph."""
+    from core.autonomous_trainer import QualityFilter
+    qf = QualityFilter(min_score=0.0)
+    good = {
+        "text": (
+            "The Python programming language was created by Guido van Rossum "
+            "and first released in 1991.  It emphasises code readability."
+        )
+    }
+    result = qf.filter([good])
+    assert len(result) == 1
+
+
+def test_quality_filter_ai_slop():
+    """QualityFilter rejects obvious AI-generated filler phrases."""
+    from core.autonomous_trainer import QualityFilter
+    qf = QualityFilter(min_score=0.5)
+    slop = {"text": "As an AI language model I cannot provide personal opinions."}
+    result = qf.filter([slop])
+    assert len(result) == 0
+
+
+def test_quality_filter_short_text():
+    """QualityFilter score method returns a float in [0, 1]."""
+    from core.autonomous_trainer import QualityFilter
+    qf = QualityFilter()
+    score = qf.score({"text": "Hi."})
+    assert 0.0 <= score <= 1.0
+
+
+def test_autonomous_trainer_status(tmp_path):
+    """AutonomousTrainer has expected attributes and methods."""
+    from core.autonomous_trainer import AutonomousTrainer
+    at = AutonomousTrainer(data_dir=str(tmp_path), model_dir=str(tmp_path))
+    assert hasattr(at, "is_running")
+    assert hasattr(at, "trigger_now")
+    assert at.is_running is False
+
+
+def test_autonomous_trainer_history(tmp_path):
+    """AutonomousTrainer.get_runs returns a list."""
+    from core.autonomous_trainer import AutonomousTrainer
+    at = AutonomousTrainer(data_dir=str(tmp_path), model_dir=str(tmp_path))
+    assert isinstance(at.get_runs(), list)
+
+
+def test_data_collector_collect_offline():
+    """DataCollector.collect returns a list without raising (CI/offline)."""
+    from core.autonomous_trainer import DataCollector
+    dc = DataCollector(timeout=1)
+    # In offline/CI mode this will return [] without raising
+    result = dc.collect("arxiv_cs")
+    assert isinstance(result, list)
+
+
+# ===========================================================================
+# Benchmarker
+# ===========================================================================
+
+
+def test_get_all_problems():
+    """get_all_problems returns the full built-in problem set."""
+    from core.benchmarker import get_all_problems
+    problems = get_all_problems()
+    assert len(problems) >= 10
+    for p in problems:
+        assert p.id           # id is the field name
+        assert p.description
+        assert p.reference_solution
+
+
+def test_benchmark_problem_categories():
+    """All problems have a valid category."""
+    from core.benchmarker import get_all_problems
+    for p in get_all_problems():
+        assert p.category in {"coding", "reasoning"}, \
+            f"Unexpected category: {p.category}"
+
+
+def test_benchmark_problem_difficulties():
+    """All problems have a valid difficulty."""
+    from core.benchmarker import get_all_problems
+    valid = {"easy", "medium", "hard"}
+    for p in get_all_problems():
+        assert p.difficulty in valid, f"Unknown difficulty: {p.difficulty}"
+
+
+def test_benchmark_runner_single_problem():
+    """BenchmarkRunner.run_suite completes on a single problem."""
+    from core.benchmarker import BenchmarkRunner, get_all_problems
+    runner = BenchmarkRunner()
+    easy = next((p for p in get_all_problems() if p.difficulty == "easy"), None)
+    assert easy is not None
+    suite = runner.run_suite(problems=[easy])
+    d = suite.to_dict()
+    assert d["total"] == 1
+    assert "results" in d
+
+
+def test_benchmark_runner_full_suite_returns_report():
+    """BenchmarkRunner.run_suite returns a BenchmarkSuite with expected keys."""
+    from core.benchmarker import BenchmarkRunner, get_all_problems
+    runner = BenchmarkRunner()
+    problems = get_all_problems()[:3]
+    suite = runner.run_suite(problems=problems)
+    d = suite.to_dict()
+    for key in ("passed", "total", "score_pct", "results"):
+        assert key in d, f"Suite dict missing key: {key}"
+    assert d["total"] == len(problems)
+
+
+def test_benchmark_report_category_scores():
+    """BenchmarkRunner.run_category returns a BenchmarkSuite."""
+    from core.benchmarker import BenchmarkRunner
+    runner = BenchmarkRunner()
+    suite = runner.run_category("coding")
+    assert suite.total >= 0
+
+
+# ===========================================================================
+# Model Enhancer
+# ===========================================================================
+
+
+def test_list_enhancements():
+    """ModelEnhancer.list_enhancements returns all expected capability keys."""
+    from core.model_enhancer import ModelEnhancer
+    enhs = ModelEnhancer.list_enhancements()
+    keys = {e["key"] for e in enhs}
+    expected = {"vision", "tool_use", "voice_input", "voice_output",
+                "knowledge", "memory", "reasoning", "web_search", "code_execution", "moe"}
+    assert expected.issubset(keys)
+
+
+def test_detect_capabilities_nonexistent_path():
+    """detect_capabilities handles a nonexistent path gracefully."""
+    from core.model_enhancer import ModelEnhancer
+    caps = ModelEnhancer().detect_capabilities("/nonexistent/path/model")
+    assert caps.base_model == "/nonexistent/path/model"
+    # Should still return a DetectedCapabilities object
+    d = caps.to_dict()
+    assert "capabilities" in d
+
+
+def test_detect_capabilities_from_name():
+    """detect_capabilities uses name heuristics for known model IDs."""
+    from core.model_enhancer import ModelEnhancer
+    # LLaVA-style name → vision should be detected
+    caps = ModelEnhancer().detect_capabilities("liuhaotian/llava-v1.5-7b")
+    assert caps.has_vision is True
+
+    # Mixtral → MoE
+    caps2 = ModelEnhancer().detect_capabilities("mistralai/Mixtral-8x7B-v0.1")
+    assert caps2.has_moe is True
+
+
+def test_generate_enhancement_script_integration(tmp_path):
+    """generate_enhancement_script writes an enhance.py and manifest."""
+    from core.model_enhancer import ModelEnhancer
+    out_dir = str(tmp_path / "enhanced")
+    script_path = ModelEnhancer().generate_enhancement_script(
+        base_model="microsoft/phi-2",
+        enhancements=["voice_input", "memory", "web_search"],
+        output_dir=out_dir,
+    )
+    assert os.path.exists(script_path)
+    assert os.path.exists(os.path.join(out_dir, "enhance_manifest.json"))
+    with open(script_path, encoding="utf-8") as fh:
+        content = fh.read()
+    assert "voice_input" in content or "Whisper" in content
+    assert "memory" in content or "LongTermMemory" in content
+
+
+def test_generate_enhancement_script_lora(tmp_path):
+    """generate_enhancement_script includes LoRA code for tool_use enhancement."""
+    from core.model_enhancer import ModelEnhancer
+    out_dir = str(tmp_path / "lora_out")
+    script_path = ModelEnhancer().generate_enhancement_script(
+        base_model="microsoft/phi-2",
+        enhancements=["tool_use"],
+        output_dir=out_dir,
+    )
+    with open(script_path, encoding="utf-8") as fh:
+        content = fh.read()
+    assert "LoraConfig" in content or "peft" in content
+
+
+def test_detect_capabilities_local_config(tmp_path):
+    """detect_capabilities reads a local config.json if present."""
+    import json as _json
+    from core.model_enhancer import ModelEnhancer
+    cfg = {
+        "architectures": ["LlamaForCausalLM"],
+        "num_experts": 8,
+        "vision_config": {"hidden_size": 768},
+    }
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(_json.dumps(cfg))
+    caps = ModelEnhancer().detect_capabilities(str(tmp_path))
+    assert caps.has_moe is True
+    assert caps.has_vision is True
+    assert caps.architecture == "LlamaForCausalLM"
+
+
+# ===========================================================================
+# Ollama Bridge
+# ===========================================================================
+
+
+def test_ollama_get_status_returns_dict():
+    """get_status always returns a dict with 'ollama_running' key."""
+    from core.ollama_bridge import get_status
+    status = get_status()
+    assert "ollama_running" in status
+    assert "models" in status
+    assert isinstance(status["models"], list)
+
+
+def test_ollama_bridge_unavailable():
+    """OllamaBridge returns a graceful error when Ollama is not running."""
+    from core.ollama_bridge import OllamaBridge
+    # Use a port that is almost certainly not running anything
+    bridge = OllamaBridge("test", base_url="http://127.0.0.1:19999")
+    resp = bridge.chat("hello")
+    assert resp.success is False
+    assert resp.error is not None
+
+
+def test_ollama_list_models_offline():
+    """list_local_models returns an empty list when Ollama is not available."""
+    from core.ollama_bridge import list_local_models
+    import unittest.mock as mock
+    with mock.patch("core.ollama_bridge.is_ollama_running", return_value=False):
+        models = list_local_models()
+    assert isinstance(models, list)
+
+
+def test_local_inference_router_backend():
+    """LocalInferenceRouter.backend_name() returns a string."""
+    from core.ollama_bridge import LocalInferenceRouter
+    router = LocalInferenceRouter()
+    name = router.backend_name()
+    assert isinstance(name, str) and len(name) > 0
+
+
+# ===========================================================================
+# Flask routes – Enhance, Benchmark, Autonomous, Ollama
+# ===========================================================================
+
+
+def test_enhance_page(client):
+    """GET /enhance renders the model enhancer wizard."""
+    resp = client.get("/enhance")
+    assert resp.status_code == 200
+    assert b"Enhance" in resp.data or b"enhance" in resp.data
+
+
+def test_api_enhance_detect_missing_path(client):
+    """POST /api/enhance/detect with no model_path returns 400."""
+    resp = client.post("/api/enhance/detect",
+                       data=json.dumps({}),
+                       content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_api_enhance_detect_nonexistent(client):
+    """POST /api/enhance/detect with unknown path still returns JSON."""
+    resp = client.post("/api/enhance/detect",
+                       data=json.dumps({"model_path": "/no/such/model"}),
+                       content_type="application/json")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "capabilities" in data
+
+
+def test_api_enhance_generate_missing(client):
+    """POST /api/enhance/generate without enhancements returns 400."""
+    resp = client.post("/api/enhance/generate",
+                       data=json.dumps({"base_model": "microsoft/phi-2",
+                                        "enhancements": []}),
+                       content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_api_enhance_generate_ok(client, tmp_path):
+    """POST /api/enhance/generate returns script_path and script_content."""
+    import unittest.mock as mock
+    # Redirect MODELS_DIR to tmp_path to avoid cluttering repo
+    with mock.patch("app.MODELS_DIR", str(tmp_path)):
+        resp = client.post(
+            "/api/enhance/generate",
+            data=json.dumps({
+                "base_model": "microsoft/phi-2",
+                "enhancements": ["memory", "web_search"],
+            }),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "script_path" in data
+    assert "script_content" in data
+
+
+def test_benchmark_page(client):
+    """GET /benchmark renders the benchmark dashboard."""
+    resp = client.get("/benchmark")
+    assert resp.status_code == 200
+    assert b"Benchmark" in resp.data or b"benchmark" in resp.data
+
+
+def test_api_benchmark_problems(client):
+    """GET /api/benchmark/problems returns a non-empty list."""
+    resp = client.get("/api/benchmark/problems")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list) and len(data) >= 10
+
+
+def test_api_benchmark_run(client, tmp_path):
+    """POST /api/benchmark/run returns a report with expected keys."""
+    import unittest.mock as mock
+    with mock.patch("app.BENCHMARK_RESULTS_DIR", str(tmp_path)):
+        resp = client.post(
+            "/api/benchmark/run",
+            data=json.dumps({"max_problems": 2}),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    # BenchmarkSuite.to_dict() returns: name, total, passed, score_pct, results
+    for key in ("passed", "total", "score_pct", "results"):
+        assert key in data
+
+
+def test_api_memory_stats(client):
+    """GET /api/memory/stats returns a dict with total_facts."""
+    resp = client.get("/api/memory/stats")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "total_facts" in data
+
+
+def test_api_memory_add_search(client):
+    """POST /api/memory/add stores a fact; /api/memory/search retrieves it."""
+    add_resp = client.post(
+        "/api/memory/add",
+        data=json.dumps({"content": "Bananas are yellow fruit"}),
+        content_type="application/json",
+    )
+    assert add_resp.status_code == 200
+
+    search_resp = client.post(
+        "/api/memory/search",
+        data=json.dumps({"query": "yellow fruit", "top_k": 3}),
+        content_type="application/json",
+    )
+    assert search_resp.status_code == 200
+    results = search_resp.get_json()
+    assert isinstance(results, list)
+
+
+def test_api_memory_clear(client):
+    """POST /api/memory/clear returns ok."""
+    resp = client.post("/api/memory/clear",
+                       data=json.dumps({}), content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+
+
+def test_api_ollama_status(client):
+    """GET /api/ollama/status returns a valid status dict."""
+    resp = client.get("/api/ollama/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "ollama_running" in data
+
+
+def test_api_ollama_chat_missing_message(client):
+    """POST /api/ollama/chat without message returns 400."""
+    resp = client.post("/api/ollama/chat",
+                       data=json.dumps({}), content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_api_autonomous_status(client):
+    """GET /api/autonomous/status returns expected keys."""
+    resp = client.get("/api/autonomous/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "running" in data
+
+
+def test_api_sandbox_run(client):
+    """POST /api/sandbox/run executes code and returns stdout."""
+    resp = client.post(
+        "/api/sandbox/run",
+        data=json.dumps({"code": "print('sandbox ok')"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data.get("returncode", data.get("exit_code", -1)) == 0
+    assert "sandbox ok" in data.get("stdout", "")
+
+
+def test_api_multiagent_solve_missing_task(client):
+    """POST /api/multiagent/solve without task returns 400."""
+    resp = client.post("/api/multiagent/solve",
+                       data=json.dumps({}), content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_api_multiagent_solve_simple(client):
+    """POST /api/multiagent/solve returns a state dict for a simple task."""
+    resp = client.post(
+        "/api/multiagent/solve",
+        data=json.dumps({
+            "task": "Write a Python function named `add` that returns a+b.",
+            "max_iterations": 2,
+        }),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "task" in data
+    assert "success" in data

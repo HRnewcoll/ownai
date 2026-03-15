@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import textwrap
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
@@ -435,10 +436,6 @@ def _get_reasoning_problems() -> List[BenchmarkProblem]:
     ]
 
 
-# Add textwrap import for the problems
-import textwrap as _textwrap_module
-
-# Fix HE-001 starter code (uses textwrap before import)
 _humaneval_problems_cache: Optional[List[BenchmarkProblem]] = None
 
 
@@ -450,8 +447,6 @@ def get_all_problems() -> List[BenchmarkProblem]:
 # ---------------------------------------------------------------------------
 # Benchmark runner
 # ---------------------------------------------------------------------------
-
-import textwrap
 
 
 class BenchmarkRunner:

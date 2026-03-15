@@ -163,15 +163,24 @@ class DataCollector:
 
     # ------------------------------------------------------------------
     def _collect_hf_papers(self, source: Dict) -> List[Dict]:
+        import urllib.error
         import urllib.request
         url = source["url"]
-        with urllib.request.urlopen(url, timeout=self.timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "OwnAI/1.0"})
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                if resp.status != 200:
+                    logger.warning("HuggingFace papers API returned status %s", resp.status)
+                    return []
+                data = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.HTTPError, urllib.error.URLError, Exception) as exc:
+            logger.debug("HuggingFace papers API unavailable: %s", exc)
+            return []
 
         docs = []
         papers = data if isinstance(data, list) else data.get("papers", [])
         for paper in papers[:15]:
-            title = paper.get("title", "")
+            title    = paper.get("title", "")
             abstract = paper.get("summary", paper.get("abstract", ""))
             if title and abstract:
                 docs.append({

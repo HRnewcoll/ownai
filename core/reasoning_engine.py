@@ -13,7 +13,11 @@ import ast
 import json
 import logging
 import os
-import resource
+try:
+    import resource as _resource  # Unix-only; used nowhere currently but kept for future RLIMIT usage
+    _HAS_RESOURCE = True
+except ImportError:  # Windows
+    _HAS_RESOURCE = False
 import subprocess
 import sys
 import tempfile

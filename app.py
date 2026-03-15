@@ -19,14 +19,14 @@ from flask_socketio import SocketIO, emit
 
 from core.config import (
     MODELS_DIR, UPLOADS_DIR, DATABASE_PATH, DATA_DIR, BENCHMARK_RESULTS_DIR,
-    AI_TYPES, AI_CATEGORIES, CAPABILITIES, BASE_MODELS,
+    MEMORY_DB_PATH, AI_TYPES, AI_CATEGORIES, CAPABILITIES, BASE_MODELS,
 )
 from core.model_builder import ModelBuilder
 from core.trainer import TrainingManager
 from core.dataset_manager import DatasetManager
 from core.agent import AgentTools, TOOLS
 from core.reasoning_engine import ReasoningEngine, CodeSandbox
-from core.memory_manager import LongTermMemory
+from core.memory_manager import LongTermMemory, MemoryEntry
 from core.multi_agent import MultiAgentOrchestrator
 from core.autonomous_trainer import AutonomousTrainer
 from core.benchmarker import BenchmarkRunner, get_all_problems
@@ -55,16 +55,15 @@ trainer_mgr = TrainingManager(socketio)
 # Lazy-initialised singletons for new subsystems
 # ---------------------------------------------------------------------------
 
+from typing import Optional
+
 _memory: Optional[LongTermMemory] = None
 _autonomous_trainer: Optional[AutonomousTrainer] = None
-
-from typing import Optional
 
 
 def _get_memory() -> LongTermMemory:
     global _memory
     if _memory is None:
-        from core.config import MEMORY_DB_PATH
         _memory = LongTermMemory(db_path=MEMORY_DB_PATH)
     return _memory
 
@@ -533,6 +532,398 @@ def api_agent_tool():
 @app.route("/help")
 def help_page():
     return render_template("help.html", ai_types=AI_TYPES, ai_categories=AI_CATEGORIES)
+
+
+# ---------------------------------------------------------------------------
+# Model Enhancer – pages and API
+# ---------------------------------------------------------------------------
+
+from core.model_enhancer import ModelEnhancer, ALL_ENHANCEMENTS
+
+_enhancer = ModelEnhancer()
+
+
+@app.route("/enhance")
+def enhance_page():
+    """Model enhancement landing page – load an existing model and add capabilities."""
+    models = AIModel.query.order_by(AIModel.created_at.desc()).all()
+    return render_template(
+        "enhance.html",
+        models=models,
+        enhancements=ALL_ENHANCEMENTS,
+        ai_types=AI_TYPES,
+    )
+
+
+@app.route("/api/enhance/detect", methods=["POST"])
+def api_enhance_detect():
+    """Detect capabilities of a model by path or HuggingFace ID."""
+    data = request.get_json() or {}
+    model_path = data.get("model_path", "").strip()
+    model_id_int = data.get("model_id")
+
+    # Allow referencing an existing OwnAI model by its DB id
+    if model_id_int and not model_path:
+        m = db.session.get(AIModel, model_id_int)
+        if m and m.output_dir:
+            model_path = m.output_dir
+
+    if not model_path:
+        return jsonify({"error": "model_path or model_id required"}), 400
+
+    try:
+        caps = _enhancer.detect_capabilities(model_path)
+        return jsonify(caps.to_dict())
+    except Exception as exc:
+        logger.exception("Capability detection failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/enhance/generate", methods=["POST"])
+def api_enhance_generate():
+    """Generate an enhancement script for the requested capabilities."""
+    data = request.get_json() or {}
+    base_model   = data.get("base_model", "").strip()
+    enhancements = data.get("enhancements", [])
+    cfg          = data.get("config", {})
+    model_id_int = data.get("model_id")
+
+    if model_id_int and not base_model:
+        m = db.session.get(AIModel, model_id_int)
+        if m:
+            base_model = m.output_dir or m.config.get("base_model", "")
+
+    if not base_model:
+        return jsonify({"error": "base_model or model_id required"}), 400
+    if not enhancements:
+        return jsonify({"error": "No enhancements selected"}), 400
+
+    # Determine output directory
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in base_model)[:40]
+    out_dir = os.path.join(MODELS_DIR, f"enhanced_{safe_name}_{uuid.uuid4().hex[:6]}")
+
+    try:
+        script_path = _enhancer.generate_enhancement_script(
+            base_model=base_model,
+            enhancements=enhancements,
+            output_dir=out_dir,
+            config=cfg,
+        )
+        # Read the generated script to return it inline
+        with open(script_path, encoding="utf-8") as fh:
+            script_content = fh.read()
+        return jsonify({
+            "script_path": script_path,
+            "output_dir": out_dir,
+            "script_content": script_content,
+            "enhancements": enhancements,
+        })
+    except Exception as exc:
+        logger.exception("Enhancement script generation failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/enhance/run", methods=["POST"])
+def api_enhance_run():
+    """Run the previously generated enhance.py script as a background training job."""
+    data = request.get_json() or {}
+    script_path = data.get("script_path", "").strip()
+    model_id_int = data.get("model_id")
+
+    if not script_path or not os.path.exists(script_path):
+        return jsonify({"error": "Valid script_path required"}), 400
+
+    # Determine output dir from the script's parent
+    out_dir = os.path.dirname(script_path)
+
+    # Create (or reuse) an AIModel DB record for this enhancement job
+    model = None
+    if model_id_int:
+        model = db.session.get(AIModel, model_id_int)
+    if not model:
+        model = AIModel(
+            name=f"Enhanced model ({os.path.basename(out_dir)})",
+            ai_type="chatbot",
+            status="training",
+            output_dir=out_dir,
+            script_path=script_path,
+        )
+        db.session.add(model)
+        db.session.commit()
+
+    trainer_mgr.start_training(model.id, script_path, out_dir)
+    return jsonify({"model_id": model.id, "message": "Enhancement training started"})
+
+
+# ---------------------------------------------------------------------------
+# Multi-agent API
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/multiagent/solve", methods=["POST"])
+def api_multiagent_solve():
+    """Run the 3-agent Architect→Coder→Reviewer loop on a problem."""
+    data = request.get_json() or {}
+    task         = data.get("task", "").strip()
+    tdd_enabled  = bool(data.get("tdd_enabled", True))
+    max_iters    = int(data.get("max_iterations", 5))
+    model_path   = data.get("model_path", "")
+
+    if not task:
+        return jsonify({"error": "task is required"}), 400
+
+    try:
+        orchestrator = MultiAgentOrchestrator(
+            tdd_enabled=tdd_enabled,
+            max_iterations=max_iters,
+        )
+        state = orchestrator.solve(task)
+        return jsonify(state.to_dict())
+    except Exception as exc:
+        logger.exception("Multi-agent solve failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Reasoning / agentic loop API
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/reason", methods=["POST"])
+def api_reason():
+    """Run the Think-Act-Observe-Verify loop on a task."""
+    data        = request.get_json() or {}
+    task        = data.get("task", "").strip()
+    tdd_enabled = bool(data.get("tdd_enabled", True))
+    max_steps   = int(data.get("max_steps", 5))
+    seed_code   = data.get("seed_code", "")
+
+    if not task:
+        return jsonify({"error": "task is required"}), 400
+
+    try:
+        engine = ReasoningEngine(tdd_enabled=tdd_enabled, max_steps=max_steps)
+        trace  = engine.solve(task=task, initial_code=seed_code)
+        return jsonify(trace.to_dict())
+    except Exception as exc:
+        logger.exception("Reasoning engine failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/sandbox/run", methods=["POST"])
+def api_sandbox_run():
+    """Execute code in the sandboxed subprocess and return output."""
+    data = request.get_json() or {}
+    code  = data.get("code", "").strip()
+    tests = data.get("tests", "").strip()
+
+    if not code:
+        return jsonify({"error": "code is required"}), 400
+
+    sandbox = CodeSandbox(timeout=60)
+    if tests:
+        result = sandbox.run_tests(code, tests)
+    else:
+        result = sandbox.run(code)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Memory API
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/memory/stats")
+def api_memory_stats():
+    """Return long-term memory statistics."""
+    mem    = _get_memory()
+    recent = mem.retrieve_recent(session_id="global", limit=1000)
+    return jsonify({"total_facts": len(recent)})
+
+
+@app.route("/api/memory/search", methods=["POST"])
+def api_memory_search():
+    """Search long-term memory for relevant facts."""
+    data  = request.get_json() or {}
+    query = data.get("query", "").strip()
+    top_k = int(data.get("top_k", 5))
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+    results = _get_memory().retrieve_similar(query, top_k=top_k)
+    return jsonify([
+        {"content": r.content, "role": r.role, "importance": r.importance}
+        for r in results
+    ])
+
+
+@app.route("/api/memory/add", methods=["POST"])
+def api_memory_add():
+    """Add a fact to long-term memory."""
+    data    = request.get_json() or {}
+    content = data.get("content", "").strip()
+    source  = data.get("source", "user")
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    entry = MemoryEntry(id=None, session_id="global", role="system",
+                        content=content, metadata={"source": source})
+    _get_memory().store(entry)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/memory/clear", methods=["POST"])
+def api_memory_clear():
+    """Clear all long-term memory facts (irreversible)."""
+    # forget_old keeps only the most recent max_entries; 0 means prune all
+    _get_memory().forget_old(max_entries=0)
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Benchmark API + page
+# ---------------------------------------------------------------------------
+
+
+@app.route("/benchmark")
+def benchmark_page():
+    """Benchmark dashboard."""
+    results = []
+    if os.path.isdir(BENCHMARK_RESULTS_DIR):
+        for fn in sorted(os.listdir(BENCHMARK_RESULTS_DIR), reverse=True)[:20]:
+            fp = os.path.join(BENCHMARK_RESULTS_DIR, fn)
+            if fn.endswith(".json") and os.path.isfile(fp):
+                try:
+                    with open(fp, encoding="utf-8") as fh:
+                        results.append(json.load(fh))
+                except Exception:
+                    pass
+    problems = get_all_problems()
+    return render_template(
+        "benchmark.html",
+        results=results,
+        problem_count=len(problems),
+        ai_types=AI_TYPES,
+    )
+
+
+@app.route("/api/benchmark/run", methods=["POST"])
+def api_benchmark_run():
+    """Run the benchmark suite on a model's output directory."""
+    data       = request.get_json() or {}
+    model_id   = data.get("model_id")
+    model_path = data.get("model_path", "").strip()
+    category   = data.get("category", "all")
+    max_probs  = int(data.get("max_problems", 20))
+
+    if model_id and not model_path:
+        m = db.session.get(AIModel, model_id)
+        if m:
+            model_path = m.output_dir or ""
+
+    runner   = BenchmarkRunner()
+    problems = get_all_problems()
+    if category != "all":
+        problems = [p for p in problems if p.category == category]
+    problems = problems[:max_probs]
+    suite    = runner.run_suite(problems=problems)
+    report   = suite.to_dict()
+
+    # Persist result
+    os.makedirs(BENCHMARK_RESULTS_DIR, exist_ok=True)
+    ts  = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    out = os.path.join(BENCHMARK_RESULTS_DIR, f"bench_{ts}.json")
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(report, fh, indent=2)
+
+    return jsonify(report)
+
+
+@app.route("/api/benchmark/problems")
+def api_benchmark_problems():
+    """List all benchmark problems."""
+    probs = get_all_problems()
+    return jsonify([
+        {"id": p.id, "description": p.description,
+         "category": p.category, "difficulty": p.difficulty}
+        for p in probs
+    ])
+
+
+# ---------------------------------------------------------------------------
+# Autonomous trainer API
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/autonomous/status")
+def api_autonomous_status():
+    """Return the status of the autonomous self-improving trainer."""
+    trainer = _get_autonomous_trainer()
+    return jsonify({
+        "running": trainer.is_running,
+        "data_dir": str(trainer.data_dir),
+        "model_dir": str(trainer.model_dir),
+        "interval_seconds": trainer.interval_seconds,
+        "runs_completed": len(trainer.get_runs()),
+    })
+
+
+@app.route("/api/autonomous/trigger", methods=["POST"])
+def api_autonomous_trigger():
+    """Manually trigger one autonomous training cycle."""
+    trainer = _get_autonomous_trainer()
+    try:
+        run = trainer.trigger_now()
+        return jsonify(run.to_dict())
+    except Exception as exc:
+        logger.exception("Autonomous training cycle failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/autonomous/history")
+def api_autonomous_history():
+    """Return the last N autonomous training run summaries."""
+    trainer = _get_autonomous_trainer()
+    return jsonify(trainer.get_runs())
+
+
+# ---------------------------------------------------------------------------
+# Ollama / local inference API
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/ollama/status")
+def api_ollama_status():
+    """Check whether Ollama is running and list available models."""
+    from core.ollama_bridge import get_status
+    return jsonify(get_status())
+
+
+@app.route("/api/ollama/chat", methods=["POST"])
+def api_ollama_chat():
+    """Send a message to a local Ollama model and return the response."""
+    from core.ollama_bridge import OllamaBridge, is_ollama_running
+    data    = request.get_json() or {}
+    message = data.get("message", "").strip()
+    model   = data.get("model", "qwen2.5:7b")
+    system  = data.get("system", "You are a helpful AI assistant.")
+    history = data.get("history", [])
+
+    if not message:
+        return jsonify({"error": "message is required"}), 400
+
+    if not is_ollama_running():
+        return jsonify({"error": "Ollama is not running. Install from https://ollama.com"}), 503
+
+    bridge = OllamaBridge(model=model, system_prompt=system)
+    resp   = bridge.chat(message, history=history)
+    return jsonify({
+        "text": resp.text,
+        "model": resp.model,
+        "prompt_tokens": resp.prompt_tokens,
+        "completion_tokens": resp.completion_tokens,
+        "elapsed_ms": resp.elapsed_ms,
+        "success": resp.success,
+        "error": resp.error,
+    })
 
 
 # ---------------------------------------------------------------------------
