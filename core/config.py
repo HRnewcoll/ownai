@@ -7,10 +7,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, "models_dir")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 DATABASE_PATH = os.path.join(BASE_DIR, "ownai.db")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+BENCHMARK_RESULTS_DIR = os.path.join(BASE_DIR, "data", "benchmarks")
+MEMORY_DB_PATH = os.path.join(BASE_DIR, "data", "memory.db")
 
 # Ensure directories exist
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(BENCHMARK_RESULTS_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Category definitions – used for UI grouping/filtering
@@ -63,7 +68,9 @@ AI_TYPES = {
         "description": "Build a conversational AI that can answer questions, hold discussions, and assist users.",
         "color": "#6366f1",
         "category": "text",
-        "capabilities": ["text", "multimodal", "voice", "reasoning", "tool_use", "mcp", "web_search", "pc_control"],
+        "capabilities": ["text", "multimodal", "voice", "voice_out", "reasoning", "deep_thinking",
+                         "tool_use", "mcp", "web_search", "pc_control", "memory", "agentic_loop",
+                         "multi_agent", "sentiment", "graph_rag"],
         "example_use_cases": ["Customer service bot", "Personal assistant", "FAQ bot", "Support agent"],
     },
     "code_ai": {
@@ -72,7 +79,8 @@ AI_TYPES = {
         "description": "AI that writes, completes, explains, and reviews code across any programming language.",
         "color": "#0ea5e9",
         "category": "text",
-        "capabilities": ["text", "reasoning", "tool_use"],
+        "capabilities": ["text", "reasoning", "deep_thinking", "tool_use", "agentic_loop",
+                         "tdd", "multi_agent", "memory", "graph_rag", "benchmark"],
         "example_use_cases": ["Copilot-style autocomplete", "Bug finder", "Code explainer", "Refactoring tool"],
     },
     "translator": {
@@ -329,11 +337,23 @@ CAPABILITIES = {
     "text": {"label": "Text Processing", "icon": "📝", "description": "Core natural language understanding and generation"},
     "multimodal": {"label": "Multimodal (Images + Text)", "icon": "🖼️", "description": "Process and generate both text and images"},
     "voice": {"label": "Voice / Speech Input", "icon": "🎙️", "description": "Accept spoken input and convert to text via Whisper"},
+    "voice_out": {"label": "Voice Output (TTS)", "icon": "🔊", "description": "Generate spoken audio responses via Piper/Coqui TTS"},
+    "image_out": {"label": "Image Output", "icon": "🎨", "description": "Generate images as part of responses"},
     "reasoning": {"label": "Chain-of-Thought Reasoning", "icon": "🧠", "description": "Step-by-step reasoning for complex problems"},
+    "deep_thinking": {"label": "Deep Thinking / Scratchpad", "icon": "💭", "description": "Extended hidden reasoning before generating answers"},
     "tool_use": {"label": "Tool Use / Function Calling", "icon": "🔧", "description": "Call external APIs and use tools dynamically"},
     "mcp": {"label": "MCP Protocol Support", "icon": "🔌", "description": "Model Context Protocol for extended tool ecosystems"},
     "web_search": {"label": "Web Search", "icon": "🌐", "description": "Search the internet in real-time for up-to-date info"},
     "pc_control": {"label": "PC / Computer Control", "icon": "🖥️", "description": "Agentic control of desktop: files, apps, browser (like OpenClaw/CoPaw)"},
+    "memory": {"label": "Long-Term Memory", "icon": "🗄️", "description": "Persist facts and past conversations across sessions"},
+    "agentic_loop": {"label": "Agentic Think-Act-Observe Loop", "icon": "🔄", "description": "Think → Act → Observe → Verify loop for robust problem solving"},
+    "tdd": {"label": "Test-Driven Development (TDD)", "icon": "✅", "description": "Write failing tests first, then implement – boosts benchmark scores"},
+    "multi_agent": {"label": "Multi-Agent Swarm", "icon": "🤝", "description": "Architect + Coder + Reviewer agents collaborate to solve tasks"},
+    "moe": {"label": "Mixture of Experts (MoE)", "icon": "⚡", "description": "Sparse expert routing for fast, efficient inference"},
+    "autonomous_training": {"label": "Autonomous Self-Training", "icon": "🚀", "description": "Scrapes quality data and fine-tunes on a schedule"},
+    "graph_rag": {"label": "Graph-RAG (Code Intelligence)", "icon": "🕸️", "description": "Maps code dependencies for precise retrieval in large codebases"},
+    "sentiment": {"label": "Emotional Intelligence / Empathy", "icon": "❤️", "description": "Detects tone and responds with appropriate empathy"},
+    "benchmark": {"label": "Built-in Benchmarking", "icon": "📊", "description": "HumanEval + reasoning benchmarks to track improvement over time"},
 }
 
 # ---------------------------------------------------------------------------
@@ -341,11 +361,20 @@ CAPABILITIES = {
 # ---------------------------------------------------------------------------
 
 _LLM_GENERAL = [
+    # SOTA / Frontier open models (2024-2025)
+    {"id": "Qwen/Qwen2.5-72B-Instruct", "label": "Qwen 2.5 72B Instruct – SOTA reasoning & coding", "size": "72B"},
+    {"id": "Qwen/Qwen2.5-7B-Instruct", "label": "Qwen 2.5 7B Instruct – Fast & capable", "size": "7B"},
+    {"id": "deepseek-ai/DeepSeek-V3", "label": "DeepSeek V3 – 671B MoE, top-tier", "size": "671B"},
+    {"id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "label": "DeepSeek R1 Distill 7B – Reasoning model", "size": "7B"},
+    {"id": "meta-llama/Meta-Llama-3.1-70B-Instruct", "label": "Llama 3.1 70B Instruct – Strong general purpose", "size": "70B"},
+    {"id": "meta-llama/Meta-Llama-3.1-8B-Instruct", "label": "Llama 3.1 8B Instruct – Fast & efficient", "size": "8B"},
+    {"id": "mistralai/Mixtral-8x7B-Instruct-v0.1", "label": "Mixtral 8x7B MoE – Sparse expert routing", "size": "47B"},
+    {"id": "mistralai/Mixtral-8x22B-Instruct-v0.1", "label": "Mixtral 8x22B MoE – High-capacity MoE", "size": "141B"},
+    {"id": "mistralai/Mistral-7B-Instruct-v0.3", "label": "Mistral 7B Instruct v0.3 – Balanced", "size": "7B"},
+    {"id": "microsoft/Phi-3.5-mini-instruct", "label": "Phi-3.5 Mini – Microsoft compact model", "size": "3.8B"},
     {"id": "microsoft/phi-2", "label": "Phi-2 (2.7B) – Fast & efficient", "size": "2.7B"},
-    {"id": "mistralai/Mistral-7B-v0.1", "label": "Mistral 7B – Balanced performance", "size": "7B"},
-    {"id": "meta-llama/Meta-Llama-3-8B", "label": "Llama 3 8B – Latest Llama", "size": "8B"},
-    {"id": "meta-llama/Llama-2-7b-hf", "label": "Llama 2 7B – Strong general purpose", "size": "7B"},
-    {"id": "google/gemma-7b", "label": "Gemma 7B – Google's open model", "size": "7B"},
+    {"id": "google/gemma-2-9b-it", "label": "Gemma 2 9B Instruct – Google latest", "size": "9B"},
+    {"id": "meta-llama/Meta-Llama-3-8B", "label": "Llama 3 8B – Latest Llama base", "size": "8B"},
     {"id": "tiiuae/falcon-7b", "label": "Falcon 7B – TII model", "size": "7B"},
     {"id": "scratch", "label": "Train from scratch (custom architecture)", "size": "custom"},
 ]
@@ -362,9 +391,15 @@ BASE_MODELS = {
     # Text & Language
     "chatbot": _LLM_GENERAL,
     "code_ai": [
-        {"id": "bigcode/starcoder2-3b", "label": "StarCoder 2 3B – State-of-the-art code LM", "size": "3B"},
-        {"id": "codellama/CodeLlama-7b-hf", "label": "Code Llama 7B – Meta code model", "size": "7B"},
-        {"id": "Salesforce/codegen-350M-mono", "label": "CodeGen 350M – Lightweight", "size": "350M"},
+        # SOTA coding models
+        {"id": "Qwen/Qwen2.5-Coder-32B-Instruct", "label": "Qwen2.5 Coder 32B – #1 open-source code model", "size": "32B"},
+        {"id": "Qwen/Qwen2.5-Coder-7B-Instruct", "label": "Qwen2.5 Coder 7B – Fast code model", "size": "7B"},
+        {"id": "deepseek-ai/DeepSeek-Coder-V2-Instruct", "label": "DeepSeek Coder V2 – 236B MoE coder", "size": "236B"},
+        {"id": "deepseek-ai/deepseek-coder-6.7b-instruct", "label": "DeepSeek Coder 6.7B – Efficient", "size": "6.7B"},
+        {"id": "bigcode/starcoder2-15b", "label": "StarCoder 2 15B – State-of-the-art code LM", "size": "15B"},
+        {"id": "bigcode/starcoder2-3b", "label": "StarCoder 2 3B – Lightweight code LM", "size": "3B"},
+        {"id": "codellama/CodeLlama-34b-Instruct-hf", "label": "Code Llama 34B – Meta code model", "size": "34B"},
+        {"id": "codellama/CodeLlama-7b-hf", "label": "Code Llama 7B – Compact", "size": "7B"},
         {"id": "microsoft/phi-2", "label": "Phi-2 (2.7B) – Great at code", "size": "2.7B"},
         {"id": "scratch", "label": "Train from scratch", "size": "custom"},
     ],
