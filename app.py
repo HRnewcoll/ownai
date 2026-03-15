@@ -18,13 +18,18 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
 
 from core.config import (
-    MODELS_DIR, UPLOADS_DIR, DATABASE_PATH,
+    MODELS_DIR, UPLOADS_DIR, DATABASE_PATH, DATA_DIR, BENCHMARK_RESULTS_DIR,
     AI_TYPES, AI_CATEGORIES, CAPABILITIES, BASE_MODELS,
 )
 from core.model_builder import ModelBuilder
 from core.trainer import TrainingManager
 from core.dataset_manager import DatasetManager
 from core.agent import AgentTools, TOOLS
+from core.reasoning_engine import ReasoningEngine, CodeSandbox
+from core.memory_manager import LongTermMemory
+from core.multi_agent import MultiAgentOrchestrator
+from core.autonomous_trainer import AutonomousTrainer
+from core.benchmarker import BenchmarkRunner, get_all_problems
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -45,6 +50,34 @@ socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
 builder = ModelBuilder()
 dataset_mgr = DatasetManager(UPLOADS_DIR)
 trainer_mgr = TrainingManager(socketio)
+
+# ---------------------------------------------------------------------------
+# Lazy-initialised singletons for new subsystems
+# ---------------------------------------------------------------------------
+
+_memory: Optional[LongTermMemory] = None
+_autonomous_trainer: Optional[AutonomousTrainer] = None
+
+from typing import Optional
+
+
+def _get_memory() -> LongTermMemory:
+    global _memory
+    if _memory is None:
+        from core.config import MEMORY_DB_PATH
+        _memory = LongTermMemory(db_path=MEMORY_DB_PATH)
+    return _memory
+
+
+def _get_autonomous_trainer() -> AutonomousTrainer:
+    global _autonomous_trainer
+    if _autonomous_trainer is None:
+        _autonomous_trainer = AutonomousTrainer(
+            data_dir=DATA_DIR,
+            model_dir=MODELS_DIR,
+            interval_seconds=86400,
+        )
+    return _autonomous_trainer
 
 # ---------------------------------------------------------------------------
 # Database models
