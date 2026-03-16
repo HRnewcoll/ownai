@@ -397,3 +397,9 @@ class MultiAgentOrchestrator:
 
         if result:
             yield {"agent": "Orchestrator", "signal": "<DONE>", "state": result[0].to_dict()}
+
+    # ------------------------------------------------------------------
+    def run(self, task: str, session_id: str = "default",
+            on_event: Optional[callable] = None) -> AgentState:
+        """Alias for solve() for API compatibility."""
+        return self.solve(task, session_id=session_id, on_event=on_event)
