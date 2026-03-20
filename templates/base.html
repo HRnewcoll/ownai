@@ -36,6 +36,9 @@
       <a href="{{ url_for('models_page') }}" class="nav-item {% if request.endpoint == 'models_page' %}active{% endif %}">
         <i class="fas fa-robot"></i><span>My Models</span>
       </a>
+      <a href="{{ url_for('chat_page') }}" class="nav-item {% if request.endpoint == 'chat_page' %}active{% endif %}">
+        <i class="fas fa-comments"></i><span>Chat</span>
+      </a>
       <a href="{{ url_for('datasets_page') }}" class="nav-item {% if request.endpoint == 'datasets_page' %}active{% endif %}">
         <i class="fas fa-database"></i><span>Datasets</span>
       </a>

@@ -1114,3 +1114,93 @@ def test_api_multiagent_solve_simple(client):
     data = resp.get_json()
     assert "task" in data
     assert "success" in data
+
+
+# ---------------------------------------------------------------------------
+# Chat page + multimodal endpoints
+# ---------------------------------------------------------------------------
+
+def test_chat_page(client):
+    """GET /chat returns 200."""
+    resp = client.get("/chat")
+    assert resp.status_code == 200
+    assert b"chat" in resp.data.lower()
+
+
+def test_chat_page_has_nav_link(client):
+    """The base layout should include the Chat nav link."""
+    resp = client.get("/")
+    assert resp.status_code == 200
+    # The Chat nav link is rendered via url_for('chat_page')
+    assert b"/chat" in resp.data
+
+
+def test_api_chat_vision_no_image(client):
+    """POST /api/chat/vision without a file returns 400."""
+    resp = client.post("/api/chat/vision", data={})
+    assert resp.status_code == 400
+    assert b"error" in resp.data
+
+
+def test_api_chat_vision_bad_extension(client):
+    """POST /api/chat/vision with a non-image file returns 400."""
+    import io
+    data = {"image": (io.BytesIO(b"not an image"), "test.pdf")}
+    resp = client.post("/api/chat/vision", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 400
+    assert b"error" in resp.data
+
+
+def test_api_chat_transcribe_no_audio(client):
+    """POST /api/chat/transcribe without a file returns 400."""
+    resp = client.post("/api/chat/transcribe", data={})
+    assert resp.status_code == 400
+    assert b"error" in resp.data
+
+
+def test_api_chat_file_no_file(client):
+    """POST /api/chat/file without a file returns 400."""
+    resp = client.post("/api/chat/file", data={})
+    assert resp.status_code == 400
+    assert b"error" in resp.data
+
+
+def test_api_chat_file_bad_extension(client):
+    """POST /api/chat/file with a binary extension returns 400."""
+    import io
+    data = {"file": (io.BytesIO(b"binary"), "model.bin")}
+    resp = client.post("/api/chat/file", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 400
+    assert b"error" in resp.data
+
+
+def test_api_chat_file_too_large(client):
+    """POST /api/chat/file with a >512 KB file returns 413."""
+    import io
+    big = io.BytesIO(b"x" * (512 * 1024 + 1))
+    data = {"file": (big, "big.txt")}
+    resp = client.post("/api/chat/file", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 413
+    assert b"error" in resp.data
+
+
+def test_api_chat_file_ok(client):
+    """POST /api/chat/file with a valid text file returns 200 with content."""
+    import io
+    content = b"Hello, OwnAI!\nLine two.\n"
+    data = {"file": (io.BytesIO(content), "hello.txt")}
+    resp = client.post("/api/chat/file", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 200
+    d = resp.get_json()
+    assert d["filename"] == "hello.txt"
+    assert "Hello, OwnAI!" in d["content"]
+    assert d["lines"] >= 2
+
+
+def test_ollama_bridge_chat_with_image_offline():
+    """chat_with_image returns a failed OllamaResponse when Ollama is offline."""
+    from core.ollama_bridge import OllamaBridge
+    bridge = OllamaBridge(model="llava", base_url="http://localhost:19999")
+    resp = bridge.chat_with_image("What is in this image?", "aGVsbG8=")
+    assert not resp.success
+    assert resp.error is not None

@@ -129,6 +129,38 @@ class OllamaBridge:
     # Public API
     # ------------------------------------------------------------------
 
+    def chat_with_image(
+        self,
+        user_message: str,
+        image_b64: str,
+        history: Optional[List[Dict[str, str]]] = None,
+        system: Optional[str] = None,
+    ) -> OllamaResponse:
+        """Send a message with an image to a vision-capable model (e.g. llava).
+
+        Args:
+            user_message: Text prompt accompanying the image.
+            image_b64: Base64-encoded image (PNG/JPEG, no data-URI prefix needed).
+            history: Optional prior conversation turns.
+            system: System prompt override.
+
+        Returns:
+            OllamaResponse with the model's description/answer.
+        """
+        messages = []
+        sys_msg = system or self.system_prompt
+        if sys_msg:
+            messages.append({"role": "system", "content": sys_msg})
+        if history:
+            messages.extend(history)
+        # Ollama vision API expects images as list of base64 strings per message
+        messages.append({
+            "role": "user",
+            "content": user_message,
+            "images": [image_b64],
+        })
+        return self._chat_request(messages)
+
     def chat(
         self,
         user_message: str,

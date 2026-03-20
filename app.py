@@ -535,8 +535,148 @@ def help_page():
 
 
 # ---------------------------------------------------------------------------
-# Model Enhancer – pages and API
+# Chat – general-purpose Ollama chat with multimodal support
 # ---------------------------------------------------------------------------
+
+@app.route("/chat")
+def chat_page():
+    """General-purpose chat page powered by local Ollama models."""
+    return render_template("chat.html")
+
+
+@app.route("/api/chat/vision", methods=["POST"])
+def api_chat_vision():
+    """Analyse an image using an Ollama vision model (e.g. llava).
+
+    Expects multipart/form-data with:
+      - image  – the image file
+      - model  – (optional) vision model name, default llava
+      - prompt – (optional) text prompt, default "Describe this image in detail."
+    """
+    from core.ollama_bridge import OllamaBridge, is_ollama_running
+    import base64
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file uploaded"}), 400
+
+    file = request.files["image"]
+    if not file.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Accept common image types only
+    allowed_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in allowed_exts:
+        return jsonify({"error": f"Unsupported image type: {ext}"}), 400
+
+    model  = request.form.get("model",  "llava")
+    prompt = request.form.get("prompt", "Describe this image in detail. Mention objects, colours, scene, text if any, and any interesting details.")
+
+    if not is_ollama_running():
+        return jsonify({"error": "Ollama is not running. Install from https://ollama.com"}), 503
+
+    raw     = file.read()
+    img_b64 = base64.b64encode(raw).decode("utf-8")
+
+    bridge = OllamaBridge(model=model, system_prompt="You are a helpful vision assistant.")
+    resp   = bridge.chat_with_image(prompt, img_b64)
+
+    if not resp.success:
+        return jsonify({"error": resp.error or "Vision model failed"}), 500
+
+    return jsonify({
+        "text":               resp.text,
+        "model":              resp.model,
+        "prompt_tokens":      resp.prompt_tokens,
+        "completion_tokens":  resp.completion_tokens,
+        "elapsed_ms":         resp.elapsed_ms,
+    })
+
+
+@app.route("/api/chat/transcribe", methods=["POST"])
+def api_chat_transcribe():
+    """Transcribe speech audio to text using OpenAI Whisper (if installed).
+
+    Expects multipart/form-data with:
+      - audio – audio file (.wav, .mp3, .ogg, .webm, .m4a)
+    """
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file uploaded"}), 400
+
+    file = request.files["audio"]
+    if not file.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Save to a temp file for Whisper
+    import tempfile
+    suffix = os.path.splitext(file.filename.lower())[1] or ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        import whisper  # type: ignore
+        model = whisper.load_model("base")
+        result = model.transcribe(tmp_path)
+        text = result.get("text", "").strip()
+        return jsonify({"text": text, "language": result.get("language", "unknown")})
+    except ImportError:
+        return jsonify({"error": "Whisper not installed. Run: pip install openai-whisper"}), 503
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+@app.route("/api/chat/file", methods=["POST"])
+def api_chat_file():
+    """Read a text file and return its contents for inclusion in chat context.
+
+    Accepts plain text, Markdown, JSON, CSV, Python, etc.
+    Binary files are rejected.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Allow common text-based extensions
+    text_exts = {
+        ".txt", ".md", ".markdown", ".py", ".js", ".ts", ".json", ".csv",
+        ".yaml", ".yml", ".toml", ".ini", ".cfg", ".html", ".htm", ".xml",
+        ".sh", ".bat", ".c", ".cpp", ".h", ".java", ".rs", ".go", ".rb",
+        ".php", ".sql", ".r", ".log",
+    }
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in text_exts:
+        return jsonify({"error": f"Unsupported file type '{ext}'. Only text-based files are accepted."}), 400
+
+    MAX_FILE_SIZE = 512 * 1024  # 512 KB
+    raw = file.read(MAX_FILE_SIZE + 1)
+    if len(raw) > MAX_FILE_SIZE:
+        return jsonify({"error": "File too large (max 512 KB for chat context)"}), 413
+
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            content = raw.decode("latin-1")
+        except UnicodeDecodeError:
+            return jsonify({"error": "Could not decode file as text"}), 400
+
+    return jsonify({
+        "filename": file.filename,
+        "content":  content,
+        "size":     len(raw),
+        "lines":    content.count("\n") + 1,
+    })
+
+
 
 from core.model_enhancer import ModelEnhancer, ALL_ENHANCEMENTS
 
