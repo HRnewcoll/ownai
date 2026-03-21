@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}Benchmark{% endblock %}
+{% block page_title %}AI Benchmarking{% endblock %}
+
+{% block head_extra %}
+<style>
+/* ── Score ring ── */
+.score-ring{position:relative;display:inline-flex;align-items:center;justify-content:center;width:80px;height:80px;}
+.score-ring svg{transform:rotate(-90deg);}
+.score-ring .score-text{position:absolute;font-size:1.1rem;font-weight:700;}
+
+/* ── Problem table ── */
+.prob-table{width:100%;border-collapse:collapse;font-size:.85rem;}
+.prob-table th{padding:.5rem .75rem;text-align:left;border-bottom:2px solid var(--border);font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+.prob-table td{padding:.55rem .75rem;border-bottom:1px solid var(--border)10;}
+.prob-table tr:hover td{background:var(--surface-2);}
+.verdict{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.75rem;font-weight:600;}
+.verdict-pass{background:#22c55e20;color:#22c55e;}
+.verdict-fail{background:#ef444420;color:#ef4444;}
+.verdict-skip{background:#6b728020;color:var(--muted);}
+
+/* ── Run form ── */
+.run-card{max-width:640px;}
+.bench-cat{display:inline-block;padding:.2rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600;background:var(--primary)20;color:var(--primary);margin-right:.3rem;}
+
+/* ── History list ── */
+.hist-item{padding:.75rem 1rem;border-radius:10px;border:1px solid var(--border);background:var(--surface);margin-bottom:.6rem;display:flex;align-items:center;gap:1rem;cursor:pointer;transition:border-color .15s;}
+.hist-item:hover{border-color:var(--primary)66;}
+.hist-score{font-size:1.6rem;font-weight:800;min-width:3.5rem;text-align:center;}
+
+/* ── Progress bar ── */
+.bench-progress{height:8px;border-radius:999px;background:var(--border);overflow:hidden;}
+.bench-progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#22c55e);transition:width .5s ease;}
+
+/* ── Live panel ── */
+#live-panel{display:none;}
+#live-log{max-height:260px;overflow-y:auto;font-size:.78rem;font-family:monospace;background:var(--code-bg);border-radius:8px;padding:.75rem 1rem;color:#d4d4d4;white-space:pre-wrap;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 360px;gap:1.5rem;align-items:start;">
+
+  <!-- ── Left column: run + results ── -->
+  <div>
+
+    <!-- Run a benchmark -->
+    <div class="card run-card" style="max-width:none;margin-bottom:1.5rem;">
+      <div class="card-header">
+        <h2 class="card-title">🎯 Run Benchmark Suite</h2>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--muted);font-size:.85rem;margin-bottom:1.25rem;">
+          {{ problem_count }} built-in problems across HumanEval, reasoning, and code-fix categories.
+          The suite uses the <strong>Think-Act-Observe-Verify</strong> agentic loop to maximise scores.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+          <div>
+            <label class="form-label">Model path (optional)</label>
+            <input type="text" id="bm-model-path" class="form-input" placeholder="Leave blank to use sandbox executor">
+          </div>
+          <div>
+            <label class="form-label">Suite</label>
+            <select id="bm-suite" class="form-select">
+              <option value="all">All problems</option>
+              <option value="humaneval">HumanEval-lite</option>
+              <option value="reasoning">Reasoning</option>
+              <option value="code_fix">Code Fix</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Max problems</label>
+            <input type="number" id="bm-max" class="form-input" value="20" min="1" max="{{ problem_count }}">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="bm-run-btn" onclick="runBenchmark()">
+          ▶ Run Benchmark
+        </button>
+      </div>
+    </div>
+
+    <!-- Live progress -->
+    <div id="live-panel" class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header" style="justify-content:space-between;">
+        <h2 class="card-title">⏳ Running…</h2>
+        <span id="live-status" style="font-size:.82rem;color:var(--muted);"></span>
+      </div>
+      <div class="card-body">
+        <div class="bench-progress" style="margin-bottom:.75rem;">
+          <div class="bench-progress-fill" id="live-bar" style="width:0%"></div>
+        </div>
+        <div id="live-log"></div>
+      </div>
+    </div>
+
+    <!-- Latest result detail -->
+    <div id="result-detail" style="display:none;">
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header" style="justify-content:space-between;align-items:center;">
+          <h2 class="card-title">📊 Latest Result</h2>
+          <span class="badge badge-success" id="res-pass-rate"></span>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;">
+            <div class="stat-card"><div class="stat-value" id="res-passed">–</div><div class="stat-label">Passed</div></div>
+            <div class="stat-card"><div class="stat-value" id="res-failed">–</div><div class="stat-label">Failed</div></div>
+            <div class="stat-card"><div class="stat-value" id="res-total">–</div><div class="stat-label">Total</div></div>
+            <div class="stat-card"><div class="stat-value" id="res-elapsed">–</div><div class="stat-label">Time (s)</div></div>
+          </div>
+          <div id="res-breakdown" style="margin-bottom:1rem;"></div>
+          <table class="prob-table" id="res-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Problem</th><th>Category</th>
+                <th>Verdict</th><th>Rounds</th><th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="res-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historical results -->
+    {% if results %}
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">📜 Previous Runs</h2></div>
+      <div class="card-body" style="max-height:420px;overflow-y:auto;">
+        {% for r in results %}
+        {% set pct = ((r.get('passed',0) / r.get('total',1)) * 100) | round(1) %}
+        <div class="hist-item" onclick="showHistResult({{ loop.index0 }})">
+          <div class="hist-score" style="color:{% if pct >= 70 %}#22c55e{% elif pct >= 40 %}#f59e0b{% else %}#ef4444{% endif %}">
+            {{ pct }}%
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:600;font-size:.9rem;">
+              {{ r.get('passed',0) }}/{{ r.get('total',0) }} passed
+              · suite: <em>{{ r.get('suite','all') }}</em>
+            </div>
+            <div style="font-size:.78rem;color:var(--muted);">
+              {{ r.get('timestamp','') }}
+              · {{ r.get('elapsed_seconds', r.get('elapsed_ms', 0)) | round(1) }}s
+            </div>
+          </div>
+          <span class="badge {% if pct >= 70 %}badge-success{% elif pct >= 40 %}badge-warning{% else %}badge-error{% endif %}">
+            {{ pct }}%
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Right column: info ── -->
+  <div>
+    <div class="card" style="margin-bottom:1.25rem;">
+      <div class="card-header"><h2 class="card-title">ℹ️ How Scoring Works</h2></div>
+      <div class="card-body" style="font-size:.84rem;color:var(--muted);line-height:1.6;">
+        <p>Each problem is solved using the <strong>Think-Act-Observe-Verify</strong> agentic loop:</p>
+        <ol style="padding-left:1.1rem;">
+          <li><strong>Think</strong> – plan approach</li>
+          <li><strong>Act</strong> – write code + tests (TDD)</li>
+          <li><strong>Observe</strong> – run in sandbox</li>
+          <li><strong>Verify</strong> – check tests pass; loop if not</li>
+        </ol>
+        <p style="margin-top:.75rem;">
+          A problem is <span class="verdict verdict-pass">PASS</span> only when all assertions
+          succeed.  Partial marks are not given.
+        </p>
+        <p style="margin-top:.75rem;font-weight:600;color:var(--text);">Target scores</p>
+        <ul style="padding-left:1.1rem;">
+          <li>HumanEval-lite: <strong>≥ 70%</strong></li>
+          <li>Reasoning: <strong>≥ 60%</strong></li>
+          <li>Code Fix: <strong>≥ 65%</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1.25rem;">
+      <div class="card-header"><h2 class="card-title">🤖 Ollama Status</h2></div>
+      <div class="card-body">
+        <div id="ollama-status-text" style="font-size:.85rem;color:var(--muted);">Checking…</div>
+        <div id="ollama-models" style="margin-top:.75rem;"></div>
+        <a href="https://ollama.com" target="_blank" class="btn btn-secondary btn-sm"
+           style="margin-top:.75rem;font-size:.78rem;">
+          📥 Get Ollama
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">🔢 Problem Categories</h2></div>
+      <div class="card-body" style="font-size:.85rem;">
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+          {% for cat in ['humaneval','recursion','sorting','string','math','debugging','algorithm','binary'] %}
+          <span class="bench-cat">{{ cat }}</span>
+          {% endfor %}
+        </div>
+        <p style="margin-top:.75rem;color:var(--muted);font-size:.8rem;">
+          {{ problem_count }} problems total across all categories.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Historical results (from server)
+const histResults = {{ results | tojson | safe }};
+
+/* ── Ollama status ───────────────────────────────────────────────────── */
+fetch('/api/ollama/status')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('ollama-status-text');
+    if (data.ollama_running) {
+      el.innerHTML = `<span class="badge badge-success">✅ Ollama running</span>`;
+      const ml = document.getElementById('ollama-models');
+      if (data.models && data.models.length) {
+        ml.innerHTML = data.models.map(m => `<div style="font-size:.78rem;padding:.15rem 0;">${m}</div>`).join('');
+      } else {
+        ml.innerHTML = `<div style="font-size:.78rem;color:var(--muted);">No models installed yet.<br><code>ollama pull qwen2.5:7b</code></div>`;
+      }
+    } else {
+      el.innerHTML = `<span class="badge badge-error">⚠️ Ollama not running</span>`;
+    }
+  })
+  .catch(() => {
+    document.getElementById('ollama-status-text').textContent = 'Could not reach Ollama';
+  });
+
+/* ── Run benchmark ───────────────────────────────────────────────────── */
+function runBenchmark() {
+  const btn = document.getElementById('bm-run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+
+  const payload = {
+    model_path:   document.getElementById('bm-model-path').value.trim(),
+    suite:        document.getElementById('bm-suite').value,
+    max_problems: parseInt(document.getElementById('bm-max').value) || 20,
+  };
+
+  // Show live panel
+  document.getElementById('live-panel').style.display = 'block';
+  document.getElementById('live-log').textContent = '';
+  document.getElementById('live-bar').style.width = '0%';
+  document.getElementById('live-status').textContent = 'Starting…';
+
+  // Simulate progress ticks while waiting; cleared immediately when fetch resolves
+  let fakeProgress = 0;
+  let tickInterval = setInterval(() => {
+    fakeProgress = Math.min(fakeProgress + 3, 90);
+    document.getElementById('live-bar').style.width = fakeProgress + '%';
+    document.getElementById('live-status').textContent = `~${fakeProgress}% complete`;
+    document.getElementById('live-log').textContent += `.`;
+  }, 1200);
+
+  fetch('/api/benchmark/run', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(r => { clearInterval(tickInterval); tickInterval = null; return r.json(); })
+  .then(data => {
+    document.getElementById('live-bar').style.width = '100%';
+    document.getElementById('live-status').textContent = 'Done!';
+    btn.disabled = false; btn.textContent = '▶ Run Benchmark';
+    if (data.error) {
+      document.getElementById('live-log').textContent = 'Error: ' + data.error;
+      return;
+    }
+    renderResult(data);
+    document.getElementById('live-panel').style.display = 'none';
+  })
+  .catch(err => {
+    if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
+    document.getElementById('live-log').textContent = 'Request failed: ' + err.message;
+    document.getElementById('live-bar').style.width = '0%';
+    btn.disabled = false; btn.textContent = '▶ Run Benchmark';
+  });
+}
+
+/* ── Render result table ─────────────────────────────────────────────── */
+function renderResult(data) {
+  const total  = data.total  || 0;
+  const passed = data.passed || 0;
+  const failed = data.failed || 0;
+  const pct    = total ? (passed / total * 100).toFixed(1) : '0.0';
+  const elapsed = (data.elapsed_seconds || data.elapsed_ms / 1000 || 0).toFixed(2);
+
+  document.getElementById('res-passed').textContent   = passed;
+  document.getElementById('res-failed').textContent   = failed;
+  document.getElementById('res-total').textContent    = total;
+  document.getElementById('res-elapsed').textContent  = elapsed + 's';
+  document.getElementById('res-pass-rate').textContent = pct + '% Pass Rate';
+  document.getElementById('res-pass-rate').className  =
+    'badge ' + (parseFloat(pct) >= 70 ? 'badge-success' : parseFloat(pct) >= 40 ? 'badge-warning' : 'badge-error');
+
+  // Per-category breakdown
+  const breakdown = data.category_scores || {};
+  const bdEl = document.getElementById('res-breakdown');
+  if (Object.keys(breakdown).length) {
+    bdEl.innerHTML = '<strong style="font-size:.82rem;">Category breakdown:</strong><br>';
+    for (const [cat, score] of Object.entries(breakdown)) {
+      const w = score.total ? (score.passed / score.total * 100).toFixed(0) : 0;
+      bdEl.innerHTML += `
+        <div style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.8rem;">
+          <span style="min-width:100px;">${cat}</span>
+          <div class="bench-progress" style="flex:1;"><div class="bench-progress-fill" style="width:${w}%"></div></div>
+          <span style="min-width:70px;text-align:right;">${score.passed}/${score.total} (${w}%)</span>
+        </div>`;
+    }
+  } else {
+    bdEl.innerHTML = '';
+  }
+
+  // Per-problem table
+  const tbody = document.getElementById('res-tbody');
+  tbody.innerHTML = '';
+  const problems = data.problems || [];
+  problems.forEach((p, i) => {
+    const v = p.verdict || p.status || 'skip';
+    const cls = v === 'pass' ? 'verdict-pass' : v === 'fail' ? 'verdict-fail' : 'verdict-skip';
+    const elapsed_p = ((p.elapsed_ms || 0) / 1000).toFixed(2);
+    tbody.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(p.description||'')}">
+          ${escHtml((p.description||'').substring(0,60))}${(p.description||'').length>60?'…':''}
+        </td>
+        <td><span class="bench-cat">${p.category||''}</span></td>
+        <td><span class="verdict ${cls}">${v.toUpperCase()}</span></td>
+        <td>${p.rounds_used||1}</td>
+        <td>${elapsed_p}s</td>
+      </tr>`;
+  });
+
+  document.getElementById('result-detail').style.display = 'block';
+}
+
+function showHistResult(idx) {
+  if (histResults[idx]) renderResult(histResults[idx]);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,937 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+{% block page_title %}Chat{% endblock %}
+
+{% block head_extra %}
+<style>
+/* ── Layout ── */
+.chat-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.25rem;
+  height: calc(100vh - 120px);
+}
+@media(max-width:840px) {
+  .chat-layout { grid-template-columns: 1fr; height: auto; }
+  .chat-panel  { min-height: 70vh; }
+}
+
+/* ── Left sidebar ── */
+.chat-sidebar { display:flex; flex-direction:column; gap:1rem; overflow-y:auto; }
+
+/* ── Main panel ── */
+.chat-panel {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* ── Messages ── */
+.chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 1.25rem;
+  display: flex; flex-direction: column; gap: .75rem;
+}
+.chat-msg {
+  max-width: 80%; padding: .875rem 1rem;
+  border-radius: 16px; line-height: 1.6;
+  font-size: .91rem; word-break: break-word;
+  animation: msg-in .18s ease;
+}
+@keyframes msg-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+.chat-msg.user  { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+.chat-msg.ai    { align-self:flex-start; background:var(--surface-2); border-bottom-left-radius:4px; }
+.chat-msg.system{ align-self:center; background:transparent; color:var(--muted); font-size:.82rem; font-style:italic; text-align:center; }
+.chat-msg.error { align-self:flex-start; background:#ef444415; border:1px solid #ef444440; color:#ef4444; border-radius:12px; }
+
+/* ── Thinking ── */
+.thinking-bubble {
+  align-self:flex-start; background:var(--surface-2);
+  border-radius:16px; border-bottom-left-radius:4px;
+  padding:.75rem 1rem; display:flex; gap:.35rem; align-items:center;
+}
+.thinking-dot {
+  width:7px; height:7px; border-radius:50%; background:var(--muted);
+  animation:tdot .9s infinite;
+}
+.thinking-dot:nth-child(2){animation-delay:.15s;}
+.thinking-dot:nth-child(3){animation-delay:.3s;}
+@keyframes tdot{0%,80%,100%{transform:translateY(0);}40%{transform:translateY(-7px);}}
+
+/* ── AI message toolbar ── */
+.ai-toolbar {
+  display:flex; gap:.35rem; margin-top:.5rem; flex-wrap:wrap;
+}
+.ai-tool-btn {
+  padding:.2rem .55rem; border-radius:6px; font-size:.72rem;
+  background:var(--border); border:none; cursor:pointer;
+  color:var(--muted); transition:all .12s;
+}
+.ai-tool-btn:hover { background:var(--primary)22; color:var(--primary); }
+.ai-tool-btn.active { background:var(--primary)33; color:var(--primary); }
+
+/* ── Input bar ── */
+.chat-input-bar {
+  display:flex; gap:.5rem; padding:.875rem 1rem;
+  border-top:1px solid var(--border); background:var(--surface);
+  align-items:flex-end; flex-wrap:wrap;
+}
+.chat-input {
+  flex:1; background:var(--bg); border:1px solid var(--border);
+  border-radius:12px; padding:.72rem 1rem; color:var(--text);
+  font-family:inherit; font-size:.91rem; resize:none;
+  min-height:46px; max-height:160px; overflow-y:auto; line-height:1.5;
+  transition:border-color .15s; min-width:120px;
+}
+.chat-input:focus { outline:none; border-color:var(--primary); }
+
+/* ── Icon buttons in input bar ── */
+.icon-btn {
+  width:42px; height:42px; border-radius:10px; flex-shrink:0;
+  border:1px solid var(--border); background:var(--surface-2);
+  color:var(--muted); cursor:pointer; display:flex;
+  align-items:center; justify-content:center; font-size:.95rem;
+  transition:all .15s;
+}
+.icon-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary)10; }
+.icon-btn.active { border-color:var(--primary); color:var(--primary); background:var(--primary)20; }
+.icon-btn.danger { border-color:#ef4444; color:#ef4444; background:#ef444410; }
+.send-btn {
+  width:42px; height:42px; border-radius:10px; flex-shrink:0;
+  background:var(--primary); color:#fff; border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:.95rem;
+  transition:background .15s, transform .1s;
+}
+.send-btn:hover { background:var(--primary-hover); }
+.send-btn:active { transform:scale(.95); }
+.send-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* ── Attachments preview strip ── */
+.attachment-strip {
+  display:flex; gap:.5rem; flex-wrap:wrap; width:100%;
+  padding-bottom:.5rem;
+}
+.attach-chip {
+  display:flex; align-items:center; gap:.35rem;
+  padding:.25rem .65rem; border-radius:999px;
+  background:var(--surface-2); border:1px solid var(--border);
+  font-size:.78rem; color:var(--text);
+}
+.attach-chip img { width:24px; height:24px; border-radius:4px; object-fit:cover; }
+.attach-remove { background:none; border:none; cursor:pointer; color:var(--muted); font-size:.85rem; line-height:1; padding:0; margin-left:.15rem; }
+.attach-remove:hover { color:#ef4444; }
+
+/* ── Sentiment badge ── */
+.sentiment-badge {
+  display:inline-flex; align-items:center; gap:.3rem;
+  padding:.18rem .55rem; border-radius:999px;
+  font-size:.72rem; font-weight:600; margin-top:.35rem;
+}
+.sent-positive { background:#22c55e18; color:#22c55e; }
+.sent-negative { background:#ef444418; color:#ef4444; }
+.sent-sad      { background:#6366f118; color:#818cf8; }
+.sent-neutral  { background:#6b728018; color:#9ca3af; }
+
+/* ── Code blocks inside AI messages ── */
+.chat-msg.ai pre {
+  background:var(--code-bg); border-radius:8px;
+  padding:.75rem 1rem; overflow-x:auto;
+  font-family:'JetBrains Mono',monospace; font-size:.81rem;
+  margin:.5rem 0; white-space:pre;
+}
+.chat-msg.ai code:not(pre code) {
+  background:var(--code-bg); padding:.1em .35em;
+  border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:.85em;
+}
+
+/* ── Sidebar ── */
+.model-list-item {
+  display:flex; align-items:center; gap:.5rem;
+  padding:.5rem .7rem; border-radius:8px; cursor:pointer;
+  font-size:.84rem; transition:background .12s;
+}
+.model-list-item:hover { background:var(--surface-2); }
+.model-list-item.active { background:var(--primary)15; color:var(--primary); font-weight:600; }
+.model-dot { width:8px; height:8px; border-radius:50%; background:var(--success); flex-shrink:0; }
+.quick-btn {
+  width:100%; text-align:left; padding:.5rem .7rem;
+  border-radius:8px; border:1px solid var(--border);
+  background:var(--surface-2); cursor:pointer; font-size:.81rem;
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.3rem;
+  transition:all .15s; color:var(--text);
+}
+.quick-btn:hover { border-color:var(--primary); background:var(--primary)10; }
+
+/* ── Token bar ── */
+.token-bar {
+  font-size:.74rem; color:var(--muted); padding:.3rem 1rem;
+  border-top:1px solid var(--border); display:flex; gap:1.2rem; flex-wrap:wrap;
+}
+
+/* ── Mic recording animation ── */
+@keyframes mic-pulse { 0%,100%{box-shadow:0 0 0 0 #ef444440;} 50%{box-shadow:0 0 0 8px #ef444400;} }
+.recording { animation:mic-pulse 1s ease infinite; background:#ef444425 !important; border-color:#ef4444 !important; color:#ef4444 !important; }
+
+/* ── TTS speaking animation ── */
+@keyframes speak-wave { 0%,100%{opacity:.4;} 50%{opacity:1;} }
+.speaking { color:var(--success) !important; animation:speak-wave .7s ease infinite; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+
+  <!-- ── Left sidebar ─────────────────────────────────── -->
+  <div class="chat-sidebar">
+
+    <!-- Ollama status + model selector -->
+    <div class="card">
+      <div class="card-header" style="padding-bottom:.6rem;">
+        <h2 class="card-title" style="font-size:.92rem;">🦙 Model</h2>
+      </div>
+      <div class="card-body" style="padding-top:0;">
+        <div id="ollama-status-row" style="font-size:.8rem;color:var(--muted);margin-bottom:.7rem;">Checking…</div>
+        <div id="model-list"><div style="font-size:.82rem;color:var(--muted);">Loading…</div></div>
+        <div id="no-ollama-hint" style="display:none;font-size:.81rem;color:var(--muted);line-height:1.55;">
+          <strong style="color:var(--text);">Ollama not running.</strong><br>
+          Install: <a href="https://ollama.com" target="_blank" style="color:var(--primary);">ollama.com</a><br>
+          Then: <code style="font-size:.78em;background:var(--code-bg);padding:.1em .35em;border-radius:4px;">ollama pull qwen2.5:7b</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- System prompt -->
+    <div class="card">
+      <div class="card-header" style="padding-bottom:.6rem;">
+        <h2 class="card-title" style="font-size:.92rem;">⚙️ System Prompt</h2>
+      </div>
+      <div class="card-body" style="padding-top:0;">
+        <textarea id="system-prompt" class="form-input" rows="4" style="font-size:.81rem;resize:vertical;"
+          >You are OwnAI — a helpful, knowledgeable AI assistant with empathy and personality. When writing code use markdown code blocks. Be concise yet thorough. When a user shares something emotional, acknowledge their feelings with warmth.</textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:.5rem;width:100%;" onclick="applySystem()">
+          Apply &amp; Clear History
+        </button>
+      </div>
+    </div>
+
+    <!-- Voice settings -->
+    <div class="card">
+      <div class="card-header" style="padding-bottom:.6rem;">
+        <h2 class="card-title" style="font-size:.92rem;">🔊 Voice Output (TTS)</h2>
+      </div>
+      <div class="card-body" style="padding-top:0;">
+        <div class="form-group" style="margin-bottom:.65rem;">
+          <label class="form-label" style="font-size:.78rem;">Voice</label>
+          <select id="tts-voice" class="form-select" style="font-size:.81rem;"></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+          <div>
+            <label class="form-label" style="font-size:.78rem;">Rate <span id="rate-val">1.0</span></label>
+            <input type="range" id="tts-rate" min="0.5" max="2" step="0.1" value="1.0"
+              oninput="document.getElementById('rate-val').textContent=this.value" style="width:100%;">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:.78rem;">Pitch <span id="pitch-val">1.0</span></label>
+            <input type="range" id="tts-pitch" min="0.5" max="2" step="0.1" value="1.0"
+              oninput="document.getElementById('pitch-val').textContent=this.value" style="width:100%;">
+          </div>
+        </div>
+        <div style="margin-top:.6rem;display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="auto-speak" style="accent-color:var(--primary);">
+          <label for="auto-speak" style="font-size:.81rem;">Auto-speak replies</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats card -->
+    <div class="card" id="stats-card" style="display:none;">
+      <div class="card-header" style="padding-bottom:.6rem;">
+        <h2 class="card-title" style="font-size:.92rem;">📊 Last Response</h2>
+      </div>
+      <div class="card-body" style="padding-top:0;font-size:.82rem;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.3rem;"><span style="color:var(--muted);">Elapsed</span><strong id="stat-elapsed">–</strong></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.3rem;"><span style="color:var(--muted);">Prompt tokens</span><strong id="stat-prompt">–</strong></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Reply tokens</span><strong id="stat-comp">–</strong></div>
+      </div>
+    </div>
+
+    <!-- Quick prompts -->
+    <div class="card">
+      <div class="card-header" style="padding-bottom:.6rem;">
+        <h2 class="card-title" style="font-size:.92rem;">⚡ Quick Prompts</h2>
+      </div>
+      <div class="card-body" style="padding-top:0;">
+        <button class="quick-btn" onclick="sendQuick('Hello! What can you help me with?')">👋 Greet</button>
+        <button class="quick-btn" onclick="sendQuick('Explain how transformer neural networks work.')">🧠 Transformers</button>
+        <button class="quick-btn" onclick="sendQuick('Write a Python function that reverses a list.')">💻 Python code</button>
+        <button class="quick-btn" onclick="sendQuick('What are the pros and cons of LoRA fine-tuning?')">⚖️ LoRA tradeoffs</button>
+        <button class="quick-btn" onclick="sendQuick('Give me 5 creative ideas for an AI side project.')">💡 AI ideas</button>
+        <button class="quick-btn" onclick="sendQuick('How do I deploy a local LLM with Ollama?')">🚀 Deploy LLM</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Main chat panel ──────────────────────────────── -->
+  <div class="chat-panel">
+
+    <!-- Top bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.1rem;border-bottom:1px solid var(--border);gap:.75rem;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:.6rem;">
+        <span style="font-size:1.1rem;">💬</span>
+        <span style="font-weight:600;font-size:.95rem;">Chat</span>
+        <span id="active-model-badge"
+          style="display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .65rem;border-radius:999px;font-size:.75rem;font-weight:600;background:var(--primary)1a;color:var(--primary);border:1px solid var(--primary)33;">
+          Loading…
+        </span>
+      </div>
+      <div style="display:flex;gap:.5rem;">
+        <button class="btn btn-secondary btn-sm" onclick="clearChat()" title="Clear conversation">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="exportChat()" title="Export as text">
+          <i class="fas fa-download"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-msg system" id="welcome-msg">
+        Select a model on the left and start chatting.<br>
+        <small>All inference runs locally via Ollama — nothing leaves your machine.</small>
+      </div>
+    </div>
+
+    <!-- Token info bar -->
+    <div class="token-bar" id="token-bar" style="display:none;">
+      <span>Model: <strong id="tb-model">–</strong></span>
+      <span>Tokens: <strong id="tb-tokens">–</strong></span>
+      <span>Time: <strong id="tb-time">–</strong></span>
+    </div>
+
+    <!-- Attachment strip (shown when files/images are queued) -->
+    <div id="attachment-strip" class="attachment-strip" style="padding:.5rem 1rem 0;display:none;"></div>
+
+    <!-- Input bar -->
+    <div class="chat-input-bar">
+
+      <!-- Hidden file inputs -->
+      <input type="file" id="img-upload"  accept="image/*" style="display:none" onchange="handleImageAttach(this)">
+      <input type="file" id="file-upload" accept=".txt,.md,.py,.js,.ts,.json,.csv,.yaml,.yml,.toml,.ini,.cfg,.html,.htm,.xml,.sh,.bat,.c,.cpp,.h,.java,.rs,.go,.rb,.php,.sql,.r,.log" style="display:none" onchange="handleFileAttach(this)">
+      <input type="file" id="audio-upload" accept="audio/*" style="display:none" onchange="handleAudioFile(this)">
+
+      <!-- Image attach -->
+      <button class="icon-btn" title="Attach image (vision model required)" onclick="document.getElementById('img-upload').click()">
+        <i class="fas fa-image"></i>
+      </button>
+
+      <!-- File attach -->
+      <button class="icon-btn" title="Attach text file" onclick="document.getElementById('file-upload').click()">
+        <i class="fas fa-paperclip"></i>
+      </button>
+
+      <!-- Voice input -->
+      <button class="icon-btn" id="mic-btn" title="Voice input (hold to record)" onclick="toggleMic()">
+        <i class="fas fa-microphone"></i>
+      </button>
+
+      <!-- Text input -->
+      <textarea
+        id="chatInput"
+        class="chat-input"
+        placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+        rows="1"
+        oninput="autoGrow(this)"
+        onkeydown="handleKey(event)"
+      ></textarea>
+
+      <!-- Send -->
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send (Enter)">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+
+  </div><!-- /chat-panel -->
+
+</div><!-- /chat-layout -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════ */
+let activeModel  = localStorage.getItem("ownai_chat_model") || "";
+let chatHistory  = [];   // [{role, content}]
+let pendingImage = null; // {filename, b64, preview}
+let pendingFile  = null; // {filename, content}
+let isSending    = false;
+
+let recognition = null;
+let isRecording = false;
+
+let currentSpeech = null;  // SpeechSynthesisUtterance in progress
+
+// Maximum characters of file content injected into the chat context.
+// Keeps prompts within typical LLM context-window budgets.
+const FILE_CONTEXT_MAX_CHARS = 12000;
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener("DOMContentLoaded", () => {
+  loadModels();
+  populateTTSVoices();
+  window.speechSynthesis.onvoiceschanged = populateTTSVoices;
+});
+
+/* ═══════════════════════════════════════════════════════
+   OLLAMA MODELS
+   ═══════════════════════════════════════════════════════ */
+function loadModels() {
+  fetch("/api/ollama/status")
+    .then(r => r.json())
+    .then(data => {
+      const statusEl = document.getElementById("ollama-status-row");
+      const listEl   = document.getElementById("model-list");
+      const hintEl   = document.getElementById("no-ollama-hint");
+
+      if (!data.ollama_running) {
+        statusEl.innerHTML = `<span style="color:#ef4444;">⚠️ Ollama offline</span>`;
+        listEl.innerHTML = "";
+        hintEl.style.display = "block";
+        document.getElementById("active-model-badge").textContent = "No model";
+        return;
+      }
+
+      statusEl.innerHTML = `<span style="color:var(--success);">✅ Connected</span>`;
+      hintEl.style.display = "none";
+
+      const models = data.models || [];
+      if (!models.length) {
+        listEl.innerHTML = `<div style="font-size:.81rem;color:var(--muted);">No models — run <code style="font-size:.78em;background:var(--code-bg);padding:.1em .35em;border-radius:4px;">ollama pull qwen2.5:7b</code></div>`;
+        document.getElementById("active-model-badge").textContent = "No model";
+        return;
+      }
+
+      listEl.innerHTML = models.map(m =>
+        `<div class="model-list-item" id="mli-${CSS.escape(m)}" onclick="selectModel('${escJs(m)}')">`+
+        `<span class="model-dot"></span>`+
+        `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(m)}</span>`+
+        `</div>`
+      ).join("");
+
+      const target = activeModel && models.includes(activeModel) ? activeModel : models[0];
+      selectModel(target);
+    })
+    .catch(() => {
+      document.getElementById("ollama-status-row").innerHTML =
+        `<span style="color:#ef4444;">⚠️ Server unreachable</span>`;
+    });
+}
+
+function selectModel(name) {
+  activeModel = name;
+  localStorage.setItem("ownai_chat_model", name);
+  document.getElementById("active-model-badge").textContent = "🦙 " + name;
+  document.querySelectorAll(".model-list-item").forEach(el => el.classList.remove("active"));
+  const el = document.getElementById("mli-" + CSS.escape(name));
+  if (el) el.classList.add("active");
+}
+
+/* ═══════════════════════════════════════════════════════
+   INPUT HELPERS
+   ═══════════════════════════════════════════════════════ */
+function autoGrow(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function setInput(text) {
+  const el = document.getElementById("chatInput");
+  el.value = text; el.focus(); autoGrow(el);
+}
+
+function sendQuick(text) { setInput(text); sendMessage(); }
+
+/* ═══════════════════════════════════════════════════════
+   IMAGE ATTACHMENT
+   ═══════════════════════════════════════════════════════ */
+function handleImageAttach(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    // dataUrl = "data:image/png;base64,XXXX"
+    const b64 = dataUrl.split(",")[1];
+    pendingImage = { filename: file.name, b64, preview: dataUrl };
+    renderAttachmentStrip();
+  };
+  reader.readAsDataURL(file);
+  input.value = "";
+}
+
+function handleFileAttach(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  fetch("/api/chat/file", { method:"POST", body:fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { addSystemMsg("⚠️ File error: " + escHtml(data.error)); return; }
+      pendingFile = { filename: data.filename, content: data.content, lines: data.lines };
+      renderAttachmentStrip();
+    })
+    .catch(() => addSystemMsg("⚠️ Failed to read file."));
+
+  input.value = "";
+}
+
+function handleAudioFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  addSystemMsg("⏳ Transcribing audio…");
+
+  const fd = new FormData();
+  fd.append("audio", file);
+
+  fetch("/api/chat/transcribe", { method:"POST", body:fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { addSystemMsg("⚠️ " + escHtml(data.error)); return; }
+      const text = data.text || "";
+      if (!text) { addSystemMsg("⚠️ Transcription returned empty result."); return; }
+      setInput(text);
+      addSystemMsg(`🎙️ Transcribed (${data.language || "?"}): "${escHtml(text.slice(0,80))}${text.length>80?"…":""}"`);
+    })
+    .catch(() => addSystemMsg("⚠️ Transcription request failed."));
+
+  input.value = "";
+}
+
+function renderAttachmentStrip() {
+  const strip = document.getElementById("attachment-strip");
+  const chips = [];
+
+  if (pendingImage) {
+    chips.push(
+      `<div class="attach-chip">`+
+      `<img src="${escHtml(pendingImage.preview)}" alt="img">`+
+      `<span>${escHtml(pendingImage.filename)}</span>`+
+      `<button class="attach-remove" onclick="removePendingImage()" title="Remove">×</button>`+
+      `</div>`
+    );
+  }
+  if (pendingFile) {
+    chips.push(
+      `<div class="attach-chip">`+
+      `<i class="fas fa-file-lines" style="color:var(--primary);"></i>`+
+      `<span>${escHtml(pendingFile.filename)} <small style="color:var(--muted);">(${pendingFile.lines} lines)</small></span>`+
+      `<button class="attach-remove" onclick="removePendingFile()" title="Remove">×</button>`+
+      `</div>`
+    );
+  }
+
+  if (chips.length) {
+    strip.innerHTML = chips.join("");
+    strip.style.display = "flex";
+  } else {
+    strip.innerHTML = "";
+    strip.style.display = "none";
+  }
+}
+
+function removePendingImage() { pendingImage = null; renderAttachmentStrip(); }
+function removePendingFile()  { pendingFile  = null; renderAttachmentStrip(); }
+
+/* ═══════════════════════════════════════════════════════
+   VOICE INPUT (Web Speech API)
+   ═══════════════════════════════════════════════════════ */
+function toggleMic() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    // Fall back to file upload
+    document.getElementById("audio-upload").click();
+    return;
+  }
+
+  if (isRecording) {
+    stopMic();
+  } else {
+    startMic();
+  }
+}
+
+function startMic() {
+  const SpeechRecog = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecog();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  const btn = document.getElementById("mic-btn");
+  btn.classList.add("recording");
+  btn.innerHTML = `<i class="fas fa-microphone-slash"></i>`;
+  isRecording = true;
+
+  recognition.onresult = e => {
+    let transcript = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      transcript += e.results[i][0].transcript;
+    }
+    document.getElementById("chatInput").value = transcript;
+    autoGrow(document.getElementById("chatInput"));
+  };
+
+  recognition.onend = () => {
+    stopMic();
+    const text = document.getElementById("chatInput").value.trim();
+    if (text) sendMessage();
+  };
+
+  recognition.onerror = e => {
+    stopMic();
+    if (e.error !== "no-speech") addSystemMsg(`⚠️ Mic error: ${e.error}`);
+  };
+
+  recognition.start();
+}
+
+function stopMic() {
+  if (recognition) { try { recognition.stop(); } catch(_){} recognition = null; }
+  const btn = document.getElementById("mic-btn");
+  btn.classList.remove("recording");
+  btn.innerHTML = `<i class="fas fa-microphone"></i>`;
+  isRecording = false;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SEND MESSAGE
+   ═══════════════════════════════════════════════════════ */
+async function sendMessage() {
+  if (isSending) return;
+
+  const inputEl = document.getElementById("chatInput");
+  const rawText = inputEl.value.trim();
+
+  const hasImage = !!pendingImage;
+  const hasFile  = !!pendingFile;
+
+  if (!rawText && !hasImage) return;
+  if (!activeModel) { addSystemMsg("⚠️ Please select a model first."); return; }
+
+  // Compose user-visible text
+  let displayText = escHtml(rawText || "(image)");
+  if (hasImage) displayText = `🖼️ <em>${escHtml(pendingImage.filename)}</em>${rawText ? "<br>" + escHtml(rawText) : ""}`;
+  if (hasFile)  displayText += `<br>📎 <em>${escHtml(pendingFile.filename)}</em>`;
+
+  inputEl.value = ""; inputEl.style.height = "auto";
+  isSending = true;
+  document.getElementById("sendBtn").disabled = true;
+
+  removeWelcome();
+  appendMsg("user", displayText);
+
+  // Clear attachments AFTER reading
+  const img  = pendingImage;
+  const file = pendingFile;
+  pendingImage = null; pendingFile = null;
+  renderAttachmentStrip();
+
+  const thinkId = addThinking();
+  const sysPrompt = document.getElementById("system-prompt").value.trim()
+    || "You are a helpful AI assistant.";
+
+  try {
+    let data;
+
+    if (hasImage) {
+      // ── Vision mode ───────────────────────────────────
+      const prompt = rawText || "Describe this image in detail.";
+      const fd = new FormData();
+
+      // Convert base64 back to a Blob for the multipart request
+      const byteString = atob(img.b64);
+      const arr = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) arr[i] = byteString.charCodeAt(i);
+      const blob = new Blob([arr], { type: "image/jpeg" });
+
+      fd.append("image", blob, img.filename);
+      fd.append("model",  activeModel);
+      fd.append("prompt", prompt);
+
+      const resp = await fetch("/api/chat/vision", { method:"POST", body:fd });
+      data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      chatHistory.push({ role:"user",      content: prompt });
+      chatHistory.push({ role:"assistant", content: data.text });
+
+    } else {
+      // ── Text (+ optional file context) mode ───────────
+      let userContent = rawText;
+      if (file) {
+        userContent = `[File: ${file.filename}]\n\`\`\`\n${file.content.slice(0, FILE_CONTEXT_MAX_CHARS)}\n\`\`\`\n\n${rawText || "Summarise or explain this file."}`;
+      }
+
+      chatHistory.push({ role:"user", content: userContent });
+
+      const resp = await fetch("/api/ollama/chat", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          message:  userContent,
+          model:    activeModel,
+          system:   sysPrompt,
+          history:  chatHistory.slice(-20),
+        }),
+      });
+      data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      chatHistory.push({ role:"assistant", content: data.text || "" });
+    }
+
+    removeThinking(thinkId);
+
+    const reply = data.text || "(no response)";
+    const sentiment = detectSentiment(rawText || "");
+    appendAIMsg(reply, sentiment, data);
+
+    if (document.getElementById("auto-speak").checked) {
+      speakText(stripMarkdown(reply));
+    }
+
+  } catch (err) {
+    removeThinking(thinkId);
+    appendMsg("error", `⚠️ ${escHtml(err.message)}`);
+  }
+
+  isSending = false;
+  document.getElementById("sendBtn").disabled = false;
+  document.getElementById("chatInput").focus();
+}
+
+/* ═══════════════════════════════════════════════════════
+   DOM HELPERS
+   ═══════════════════════════════════════════════════════ */
+let _thinkCtr = 0;
+function addThinking() {
+  const id = "think-" + (++_thinkCtr);
+  const el = document.createElement("div");
+  el.id = id; el.className = "thinking-bubble";
+  el.innerHTML = `<div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>`;
+  document.getElementById("chatMessages").appendChild(el);
+  scrollBottom(); return id;
+}
+function removeThinking(id) { const el = document.getElementById(id); if(el) el.remove(); }
+
+function appendMsg(role, html) {
+  removeWelcome();
+  const div = document.createElement("div");
+  div.className = "chat-msg " + role;
+  div.innerHTML = html;
+  document.getElementById("chatMessages").appendChild(div);
+  scrollBottom();
+}
+
+function appendAIMsg(text, sentiment, stats) {
+  removeWelcome();
+  const div = document.createElement("div");
+  div.className = "chat-msg ai";
+
+  const rendered = renderMarkdown(text);
+  let sentBadge = "";
+  if (sentiment) {
+    const cls = sentiment.cls, label = sentiment.label, emoji = sentiment.emoji;
+    sentBadge = `<div class="sentiment-badge ${cls}">${emoji} ${label}</div>`;
+  }
+
+  const msgId = "ai-msg-" + Date.now();
+  div.innerHTML = `<div id="${msgId}-content">${rendered}</div>${sentBadge}`+
+    `<div class="ai-toolbar">`+
+    `<button class="ai-tool-btn" onclick="speakText(stripMarkdown(${JSON.stringify(text)}))" title="Read aloud"><i class="fas fa-volume-up"></i> Speak</button>`+
+    `<button class="ai-tool-btn" onclick="copyText(${JSON.stringify(text)})" title="Copy"><i class="fas fa-copy"></i> Copy</button>`+
+    `</div>`;
+
+  document.getElementById("chatMessages").appendChild(div);
+  scrollBottom();
+
+  // Stats
+  if (stats) {
+    document.getElementById("stats-card").style.display = "block";
+    document.getElementById("stat-elapsed").textContent = ((stats.elapsed_ms||0)/1000).toFixed(2)+"s";
+    document.getElementById("stat-prompt").textContent  = stats.prompt_tokens || "–";
+    document.getElementById("stat-comp").textContent    = stats.completion_tokens || "–";
+    const bar = document.getElementById("token-bar");
+    bar.style.display = "flex";
+    document.getElementById("tb-model").textContent  = stats.model || activeModel;
+    document.getElementById("tb-tokens").textContent = ((stats.prompt_tokens||0)+(stats.completion_tokens||0)) || "–";
+    document.getElementById("tb-time").textContent   = ((stats.elapsed_ms||0)/1000).toFixed(2)+"s";
+  }
+}
+
+function addSystemMsg(text) {
+  const div = document.createElement("div");
+  div.className = "chat-msg system";
+  div.innerHTML = text;
+  document.getElementById("chatMessages").appendChild(div);
+  scrollBottom();
+}
+
+function removeWelcome() {
+  const el = document.getElementById("welcome-msg");
+  if (el) el.remove();
+}
+
+function scrollBottom() {
+  const el = document.getElementById("chatMessages");
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ═══════════════════════════════════════════════════════
+   VOICE OUTPUT — Web Speech API (SpeechSynthesis)
+   ═══════════════════════════════════════════════════════ */
+function populateTTSVoices() {
+  const voices = window.speechSynthesis.getVoices();
+  const sel = document.getElementById("tts-voice");
+  sel.innerHTML = voices.map((v,i) =>
+    `<option value="${i}">${v.name} (${v.lang})</option>`
+  ).join("") || `<option value="">Browser default</option>`;
+}
+
+function speakText(text) {
+  if (!text || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  const utter = new SpeechSynthesisUtterance(text);
+  const sel = document.getElementById("tts-voice");
+  const voices = window.speechSynthesis.getVoices();
+  const idx = parseInt(sel.value);
+  if (!isNaN(idx) && voices[idx]) utter.voice = voices[idx];
+  utter.rate  = parseFloat(document.getElementById("tts-rate").value)  || 1;
+  utter.pitch = parseFloat(document.getElementById("tts-pitch").value) || 1;
+
+  currentSpeech = utter;
+  window.speechSynthesis.speak(utter);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SENTIMENT DETECTION (client-side heuristic keyword match)
+   ─────────────────────────────────────────────────────────
+   This is a lightweight proof-of-concept. It checks for
+   common emotional words in the user's message and surfaces
+   an empathy/tone badge so the AI's reply feels contextually
+   appropriate. A production deployment could swap this for a
+   proper sentiment model served via /api/sentiment.
+   ═══════════════════════════════════════════════════════ */
+const SAD_WORDS     = ["sad","upset","depressed","depressing","cry","crying","grief","grieve","loss","died","death","lost","miss","lonely","alone","hopeless","heartbroken","devastated","overwhelmed","anxious","scared","afraid","worried","hurt","pain"];
+const NEGATIVE_WORDS= ["angry","frustrated","annoyed","hate","terrible","awful","horrible","worst","bad","disgust","rage","furious","stressed"];
+const POSITIVE_WORDS= ["happy","excited","amazing","great","love","awesome","fantastic","wonderful","thrilled","joy","joyful","grateful","thankful","brilliant","excellent","congratulations"];
+
+function detectSentiment(text) {
+  if (!text || text.length < 10) return null;
+  const lower = text.toLowerCase();
+  const words = lower.split(/\W+/);
+  const hasSad  = words.some(w => SAD_WORDS.includes(w));
+  const hasNeg  = words.some(w => NEGATIVE_WORDS.includes(w));
+  const hasPos  = words.some(w => POSITIVE_WORDS.includes(w));
+  if (hasSad)       return { cls:"sent-sad",      label:"Empathy mode",     emoji:"💙" };
+  if (hasNeg)       return { cls:"sent-negative",  label:"Negative tone",    emoji:"🔴" };
+  if (hasPos)       return { cls:"sent-positive",  label:"Positive tone",    emoji:"🟢" };
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════
+   ACTIONS
+   ═══════════════════════════════════════════════════════ */
+function clearChat() {
+  chatHistory = [];
+  pendingImage = null; pendingFile = null; renderAttachmentStrip();
+  document.getElementById("chatMessages").innerHTML =
+    `<div class="chat-msg system" id="welcome-msg">Conversation cleared. Start a new chat below.</div>`;
+  document.getElementById("stats-card").style.display  = "none";
+  document.getElementById("token-bar").style.display   = "none";
+  window.speechSynthesis.cancel();
+}
+
+function applySystem() {
+  clearChat();
+  addSystemMsg("✅ System prompt updated. Conversation cleared.");
+}
+
+function exportChat() {
+  if (!chatHistory.length) { alert("No conversation to export yet."); return; }
+  const lines = chatHistory.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join("\n\n---\n\n");
+  const blob = new Blob([lines], { type:"text/plain" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = "ownai_chat.txt"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text)
+    .then(() => addSystemMsg("📋 Copied to clipboard."))
+    .catch(() => addSystemMsg("⚠️ Could not copy."));
+}
+
+/* ═══════════════════════════════════════════════════════
+   MARKDOWN RENDERER (lightweight, no extra libs)
+   ═══════════════════════════════════════════════════════ */
+function renderMarkdown(text) {
+  // Fenced code blocks
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${escHtml(code.trim())}</code></pre>`
+  );
+  // Inline code
+  text = text.replace(/`([^`\n]+)`/g, (_, c) => `<code>${escHtml(c)}</code>`);
+  // Bold
+  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // Italic
+  text = text.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  // Headings ###  ##  #
+  text = text.replace(/^###\s(.+)$/gm, `<strong style="font-size:1rem;display:block;margin:.5rem 0 .2rem;">$1</strong>`);
+  text = text.replace(/^##\s(.+)$/gm,  `<strong style="font-size:1.05rem;display:block;margin:.6rem 0 .2rem;">$1</strong>`);
+  text = text.replace(/^#\s(.+)$/gm,   `<strong style="font-size:1.1rem;display:block;margin:.7rem 0 .25rem;">$1</strong>`);
+  // Bullets
+  text = text.replace(/^[-*]\s(.+)$/gm, "• $1");
+  // Numbered
+  text = text.replace(/^\d+\.\s(.+)$/gm, "→ $1");
+  // Newlines
+  text = text.replace(/\n/g, "<br>");
+  return text;
+}
+
+function stripMarkdown(text) {
+  // Remove markdown for TTS (speak plain text)
+  return text
+    .replace(/```[\s\S]*?```/g, " (code block) ")
+    .replace(/`[^`]+`/g, " ")
+    .replace(/[*_#\[\]]/g, "")
+    .replace(/\n/g, " ")
+    .trim();
+}
+
+/* ═══════════════════════════════════════════════════════
+   SANITISATION
+   ═══════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function escJs(s) {
+  return String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+}
+</script>
+{% endblock %}

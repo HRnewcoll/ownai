@@ -36,8 +36,17 @@
       <a href="{{ url_for('models_page') }}" class="nav-item {% if request.endpoint == 'models_page' %}active{% endif %}">
         <i class="fas fa-robot"></i><span>My Models</span>
       </a>
+      <a href="{{ url_for('chat_page') }}" class="nav-item {% if request.endpoint == 'chat_page' %}active{% endif %}">
+        <i class="fas fa-comments"></i><span>Chat</span>
+      </a>
       <a href="{{ url_for('datasets_page') }}" class="nav-item {% if request.endpoint == 'datasets_page' %}active{% endif %}">
         <i class="fas fa-database"></i><span>Datasets</span>
+      </a>
+      <a href="{{ url_for('enhance_page') }}" class="nav-item {% if request.endpoint == 'enhance_page' %}active{% endif %}">
+        <i class="fas fa-bolt"></i><span>Enhance Model</span>
+      </a>
+      <a href="{{ url_for('benchmark_page') }}" class="nav-item {% if request.endpoint == 'benchmark_page' %}active{% endif %}">
+        <i class="fas fa-chart-bar"></i><span>Benchmark</span>
       </a>
       <a href="{{ url_for('help_page') }}" class="nav-item {% if request.endpoint == 'help_page' %}active{% endif %}">
         <i class="fas fa-circle-question"></i><span>Help</span>

@@ -32,3 +32,37 @@ anthropic>=0.25.1
 openai>=1.25.0
 google-generativeai>=0.5.3
 mcp>=1.0.0
+
+# ── New: Agentic AI / Reasoning / Memory ──────────────────────────────────
+# Sentence embeddings for vector-based long-term memory and RAG
+sentence-transformers>=2.7.0
+# LangGraph for multi-agent orchestration (optional – falls back to built-in)
+langgraph>=0.1.0
+# ChromaDB for persistent vector database (optional – falls back to SQLite)
+chromadb>=0.5.0
+# Docker SDK for sandboxed code execution (optional – falls back to subprocess)
+docker>=7.0.0
+# Fast local inference via Ollama REST API (no pip package needed; client only)
+# ollama>=0.3.0 is optional; the built-in urllib bridge works without it
+# Whisper.cpp Python bindings (faster than openai-whisper on CPU)
+# pywhispercpp>=1.2.0
+# Piper TTS for offline voice output (install separately via system package)
+# piper-tts>=1.2.0
+# TTS (Coqui) for offline voice output
+TTS>=0.22.0
+# Tree-sitter for Graph-based code RAG
+tree-sitter>=0.20.0
+# YAML config support
+pyyaml>=6.0.0
+# Tiktoken for token counting
+tiktoken>=0.7.0
+# Pydantic v2 for data validation in new modules
+pydantic>=2.0.0
+# arxiv API for autonomous data collection
+arxiv>=2.1.0
+# Wikipedia API
+wikipedia-api>=0.6.0
+# SoundDevice for microphone input (voice pipeline)
+sounddevice>=0.4.6
+# Scipy for audio processing utilities
+scipy>=1.13.0

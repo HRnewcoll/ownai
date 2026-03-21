@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+{% block title %}Enhance Model{% endblock %}
+{% block page_title %}Model Enhancer{% endblock %}
+
+{% block head_extra %}
+<style>
+/* ── Wizard ── */
+.wizard-steps{display:flex;gap:.4rem;margin-bottom:2rem;flex-wrap:wrap;}
+.wizard-step{flex:1;min-width:120px;padding:.65rem .75rem;border-radius:12px;border:2px solid var(--border);background:var(--surface);text-align:center;cursor:pointer;transition:all .2s;font-size:.8rem;font-weight:500;}
+.wizard-step.active{border-color:var(--primary);background:var(--primary)15;color:var(--primary);}
+.wizard-step.done{border-color:var(--success);color:var(--success);}
+.wizard-panel{display:none;}.wizard-panel.active{display:block;}
+
+/* ── Source selector ── */
+.source-card{padding:1rem;border-radius:12px;border:2px solid var(--border);background:var(--surface);cursor:pointer;transition:all .2s;display:flex;gap:.75rem;align-items:flex-start;margin-bottom:.6rem;}
+.source-card:hover{border-color:var(--primary)66;}
+.source-card.selected{border-color:var(--primary);background:var(--primary)10;}
+.source-card input[type=radio]{margin-top:.15rem;accent-color:var(--primary);}
+
+/* ── Capability grid ── */
+.cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.85rem;}
+.cap-card{padding:1rem 1.1rem;border-radius:14px;border:2px solid var(--border);background:var(--surface);cursor:pointer;transition:all .2s;position:relative;}
+.cap-card:hover{border-color:var(--primary)88;transform:translateY(-1px);}
+.cap-card.selected{border-color:var(--primary);background:var(--primary)0D;}
+.cap-card input[type=checkbox]{position:absolute;top:.85rem;right:.85rem;accent-color:var(--primary);width:16px;height:16px;}
+.cap-icon{font-size:1.75rem;margin-bottom:.35rem;}
+.cap-label{font-weight:600;font-size:.9rem;margin-bottom:.2rem;}
+.cap-desc{font-size:.76rem;color:var(--muted);line-height:1.4;margin-bottom:.5rem;}
+.cap-badge{display:inline-block;font-size:.66rem;padding:.15rem .45rem;border-radius:999px;font-weight:600;margin-right:.3rem;}
+.badge-low{background:#22c55e20;color:#22c55e;}
+.badge-medium{background:#f59e0b20;color:#f59e0b;}
+.badge-high{background:#ef444420;color:#ef4444;}
+.badge-lora{background:#6366f120;color:#6366f1;}
+.badge-integration{background:#06b6d420;color:#06b6d4;}
+
+/* ── Detected capabilities panel ── */
+.detect-panel{background:var(--surface-2);border-radius:12px;border:1px solid var(--border);padding:1.25rem;margin-bottom:1.25rem;display:none;}
+.detect-panel.visible{display:block;}
+.cap-check{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:999px;font-size:.8rem;font-weight:500;margin:.25rem;}
+.cap-yes{background:#22c55e20;color:#22c55e;}
+.cap-no{background:#6b728020;color:var(--muted);}
+
+/* ── Script output ── */
+.script-box{background:var(--code-bg);border-radius:10px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.78rem;max-height:400px;overflow-y:auto;white-space:pre;tab-size:4;color:#d4d4d4;border:1px solid var(--border);}
+.copy-btn{position:absolute;top:.75rem;right:.75rem;}
+
+/* ── Step indicator ── */
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;font-size:.75rem;font-weight:700;margin-right:.5rem;flex-shrink:0;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-steps">
+  <div class="wizard-step active" id="tab-1" onclick="goTab(1)"><span class="step-num">1</span>Load Model</div>
+  <div class="wizard-step" id="tab-2" onclick="goTab(2)"><span class="step-num">2</span>Detect</div>
+  <div class="wizard-step" id="tab-3" onclick="goTab(3)"><span class="step-num">3</span>Choose Enhancements</div>
+  <div class="wizard-step" id="tab-4" onclick="goTab(4)"><span class="step-num">4</span>Configure &amp; Generate</div>
+</div>
+
+<form id="enhanceForm">
+
+<!-- ── Panel 1: Load Model ─────────────────────────────────────────────── -->
+<div class="wizard-panel active" id="panel-1">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Step 1 – Load an Existing Model</h2></div>
+    <div class="card-body">
+      <p style="color:var(--muted);margin-bottom:1.5rem;">
+        Choose a model to enhance.  This can be a model you've already built in OwnAI,
+        a local path, or any HuggingFace model ID.
+      </p>
+
+      <!-- Source type -->
+      <label class="source-card selected" id="src-ownai-card">
+        <input type="radio" name="source_type" value="ownai" id="src-ownai" checked onchange="switchSource(this)">
+        <div>
+          <div style="font-weight:600;margin-bottom:.2rem;">🤖 OwnAI Model</div>
+          <div style="font-size:.82rem;color:var(--muted);">Pick a model you already built &amp; trained inside OwnAI.</div>
+        </div>
+      </label>
+      <label class="source-card" id="src-path-card">
+        <input type="radio" name="source_type" value="path" id="src-path" onchange="switchSource(this)">
+        <div>
+          <div style="font-weight:600;margin-bottom:.2rem;">📁 Local Path</div>
+          <div style="font-size:.82rem;color:var(--muted);">Folder on disk containing a HuggingFace-format model.</div>
+        </div>
+      </label>
+      <label class="source-card" id="src-hf-card">
+        <input type="radio" name="source_type" value="hf" id="src-hf" onchange="switchSource(this)">
+        <div>
+          <div style="font-weight:600;margin-bottom:.2rem;">🤗 HuggingFace ID</div>
+          <div style="font-size:.82rem;color:var(--muted);">Any public model on the Hub, e.g. <code>microsoft/phi-2</code>.</div>
+        </div>
+      </label>
+
+      <!-- OwnAI model picker -->
+      <div id="ownai-picker" style="margin-top:1.25rem;">
+        <label class="form-label">Select model</label>
+        <select name="model_id" id="model_id" class="form-select" onchange="onOwnaiModelChange(this)">
+          <option value="">-- choose a model --</option>
+          {% for m in models %}
+          <option value="{{ m.id }}"
+            data-output="{{ m.output_dir or '' }}"
+            data-base="{{ m.config.get('base_model','') }}">
+            {{ m.name }} ({{ m.ai_type }}, {{ m.status }})
+          </option>
+          {% endfor %}
+        </select>
+        {% if not models %}
+        <p style="color:var(--muted);font-size:.82rem;margin-top:.5rem;">
+          No models yet – <a href="{{ url_for('builder') }}">build one first</a> or use a local path / HuggingFace ID.
+        </p>
+        {% endif %}
+      </div>
+
+      <!-- Local path -->
+      <div id="path-picker" style="margin-top:1.25rem;display:none;">
+        <label class="form-label">Model directory</label>
+        <input type="text" name="model_path_input" id="model_path_input" class="form-input"
+               placeholder="/home/user/models/my_model" oninput="syncModelPath()">
+      </div>
+
+      <!-- HuggingFace ID -->
+      <div id="hf-picker" style="margin-top:1.25rem;display:none;">
+        <label class="form-label">HuggingFace model ID</label>
+        <input type="text" name="hf_id_input" id="hf_id_input" class="form-input"
+               placeholder="microsoft/phi-2" oninput="syncModelPath()">
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.4rem;">
+          The model will be downloaded by HuggingFace <code>transformers</code> automatically when the script runs.
+        </div>
+      </div>
+
+      <!-- Hidden combined field -->
+      <input type="hidden" name="base_model" id="base_model">
+
+      <div style="display:flex;justify-content:flex-end;margin-top:2rem;">
+        <button type="button" class="btn btn-primary" onclick="goDetect()">
+          Next: Detect Capabilities →
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Panel 2: Detect ─────────────────────────────────────────────────── -->
+<div class="wizard-panel" id="panel-2">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Step 2 – Detected Capabilities</h2></div>
+    <div class="card-body">
+      <div id="detect-loading" style="display:none;text-align:center;padding:2rem;">
+        <div class="thinking"><span>Analysing model</span><span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span></div>
+      </div>
+      <div id="detect-result" class="detect-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+          <strong id="detect-arch">Architecture: unknown</strong>
+          <span style="font-size:.8rem;color:var(--muted);" id="detect-params"></span>
+        </div>
+        <div id="detect-caps-list"></div>
+        <div id="detect-notes" style="font-size:.76rem;color:var(--muted);margin-top:.75rem;"></div>
+      </div>
+      <div id="detect-error" style="display:none;" class="alert alert-error"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:2rem;">
+        <button type="button" class="btn btn-secondary" onclick="goTab(1)">← Back</button>
+        <button type="button" class="btn btn-primary" onclick="goTab(3)">Next: Choose Enhancements →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Panel 3: Choose Enhancements ────────────────────────────────────── -->
+<div class="wizard-panel" id="panel-3">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Step 3 – Choose Enhancements</h2></div>
+    <div class="card-body">
+      <p style="color:var(--muted);margin-bottom:1.25rem;">
+        Select the capabilities you want to add.  You can add as many as you like.
+      </p>
+      <div class="cap-grid" id="cap-grid">
+        {% for key, info in enhancements.items() %}
+        <label class="cap-card" id="cap-{{ key }}" onclick="toggleCap('{{ key }}', this)">
+          <input type="checkbox" name="enhancements" value="{{ key }}" id="chk-{{ key }}" style="pointer-events:none;">
+          <div class="cap-icon">{{ info.icon }}</div>
+          <div class="cap-label">{{ info.label }}</div>
+          <div class="cap-desc">{{ info.description }}</div>
+          <div>
+            <span class="cap-badge badge-{{ info.complexity }}">{{ info.complexity }}</span>
+            <span class="cap-badge badge-{{ info.method }}">{{ info.method }}</span>
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;">
+            Requires: {{ info.requirements }}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+      <div style="margin-top:1.25rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;font-size:.82rem;color:var(--muted);">
+        <strong>Selected:</strong> <span id="selected-caps-summary">None</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:2rem;">
+        <button type="button" class="btn btn-secondary" onclick="goTab(2)">← Back</button>
+        <button type="button" class="btn btn-primary" onclick="goTab(4)">Next: Configure →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Panel 4: Configure & Generate ───────────────────────────────────── -->
+<div class="wizard-panel" id="panel-4">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Step 4 – Configure &amp; Generate Script</h2></div>
+    <div class="card-body">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+        <div>
+          <label class="form-label">Epochs</label>
+          <input type="number" name="epochs" id="cfg-epochs" class="form-input" value="2" min="1" max="10">
+        </div>
+        <div>
+          <label class="form-label">Learning Rate</label>
+          <input type="number" name="learning_rate" id="cfg-lr" class="form-input" value="0.0001" min="0.00001" step="0.00001">
+        </div>
+        <div>
+          <label class="form-label">Batch Size</label>
+          <input type="number" name="batch_size" id="cfg-batch" class="form-input" value="2" min="1" max="32">
+        </div>
+        <div>
+          <label class="form-label">Max Sequence Length</label>
+          <input type="number" name="max_seq_len" id="cfg-maxlen" class="form-input" value="512" min="128" step="128">
+        </div>
+      </div>
+
+      <!-- Knowledge update: user docs -->
+      <div id="knowledge-opts" style="display:none;margin-bottom:1rem;">
+        <label class="form-label">📚 Knowledge Update – User Documents Path (optional)</label>
+        <input type="text" name="user_docs" id="cfg-user-docs" class="form-input"
+               placeholder="/path/to/documents/  or  /path/to/file.txt">
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;">
+          Directory of .txt/.json files <em>or</em> a single file with one document per line.
+        </div>
+        <label class="form-label" style="margin-top:.75rem;">HuggingFace Dataset ID (optional)</label>
+        <input type="text" name="hf_dataset" id="cfg-hf-ds" class="form-input"
+               placeholder="Leave blank for default or enter e.g. tatsu-lab/alpaca">
+      </div>
+
+      <!-- Vision: encoder -->
+      <div id="vision-opts" style="display:none;margin-bottom:1rem;">
+        <label class="form-label">🖼️ Vision – CLIP Encoder model</label>
+        <input type="text" name="vision_encoder" id="cfg-vision-enc" class="form-input"
+               value="openai/clip-vit-base-patch32">
+      </div>
+
+      <!-- MoE opts -->
+      <div id="moe-opts" style="display:none;margin-bottom:1rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label class="form-label">⚡ MoE – Number of Experts</label>
+            <input type="number" name="num_experts" id="cfg-experts" class="form-input" value="4" min="2" max="64">
+          </div>
+          <div>
+            <label class="form-label">Top-K Routing</label>
+            <input type="number" name="moe_top_k" id="cfg-topk" class="form-input" value="2" min="1">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.75rem;justify-content:flex-start;margin-bottom:1.25rem;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="gen-btn" onclick="generateScript()">
+          ⚡ Generate Enhancement Script
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="goTab(3)">← Back</button>
+      </div>
+
+      <!-- Script output -->
+      <div id="script-output" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+          <h3 style="font-size:.95rem;font-weight:600;margin:0;">Generated: <code id="script-path-display"></code></h3>
+          <button class="btn btn-secondary btn-sm" onclick="copyScript()">📋 Copy</button>
+        </div>
+        <div class="script-box" id="script-content-box"></div>
+
+        <div style="margin-top:1.25rem;padding:1rem;background:var(--surface-2);border-radius:10px;">
+          <div style="font-weight:600;margin-bottom:.5rem;">🚀 Run the Enhancement</div>
+          <div style="font-size:.85rem;color:var(--muted);margin-bottom:.75rem;">
+            The script has been saved to disk.  You can run it in your terminal or click below to run it inside OwnAI.
+          </div>
+          <div style="font-family:monospace;font-size:.82rem;background:var(--code-bg);padding:.6rem .85rem;border-radius:8px;margin-bottom:.75rem;color:#d4d4d4;">
+            python <span id="run-cmd-path"></span>
+          </div>
+          <button type="button" class="btn btn-success" id="run-btn" onclick="runEnhancement()">
+            ▶ Run Inside OwnAI (background job)
+          </button>
+        </div>
+      </div>
+
+      <div id="generate-error" class="alert alert-error" style="display:none;margin-top:1rem;"></div>
+    </div>
+  </div>
+</div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTab = 1;
+let detectedCaps = {};
+let generatedScriptPath = "";
+
+function goTab(n) {
+  document.querySelectorAll('.wizard-panel').forEach((p,i) => {
+    p.classList.toggle('active', i+1 === n);
+  });
+  document.querySelectorAll('.wizard-step').forEach((s,i) => {
+    s.classList.remove('active','done');
+    if (i+1 === n) s.classList.add('active');
+    else if (i+1 < n) s.classList.add('done');
+  });
+  currentTab = n;
+  if (n === 4) updateConfigVisibility();
+}
+
+function switchSource(radio) {
+  document.getElementById('ownai-picker').style.display = radio.value==='ownai' ? 'block':'none';
+  document.getElementById('path-picker').style.display  = radio.value==='path'  ? 'block':'none';
+  document.getElementById('hf-picker').style.display    = radio.value==='hf'    ? 'block':'none';
+  ['ownai','path','hf'].forEach(id => {
+    document.getElementById(`src-${id}-card`).classList.toggle('selected', radio.value===id);
+  });
+  syncModelPath();
+}
+
+function onOwnaiModelChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const output = opt.dataset.output || '';
+  const base   = opt.dataset.base   || '';
+  document.getElementById('base_model').value = output || base;
+}
+
+function syncModelPath() {
+  const src = document.querySelector('input[name=source_type]:checked').value;
+  if (src === 'path') {
+    document.getElementById('base_model').value = document.getElementById('model_path_input').value.trim();
+  } else if (src === 'hf') {
+    document.getElementById('base_model').value = document.getElementById('hf_id_input').value.trim();
+  }
+  // 'ownai' is handled by onOwnaiModelChange
+}
+
+function goDetect() {
+  const base = document.getElementById('base_model').value.trim();
+  const modelId = document.getElementById('model_id').value;
+  if (!base && !modelId) {
+    alert('Please select or enter a model first.');
+    return;
+  }
+  goTab(2);
+  document.getElementById('detect-loading').style.display = 'block';
+  document.getElementById('detect-result').classList.remove('visible');
+  document.getElementById('detect-error').style.display = 'none';
+
+  fetch('/api/enhance/detect', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({model_path: base, model_id: modelId ? parseInt(modelId) : null})
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('detect-loading').style.display = 'none';
+    if (data.error) {
+      const el = document.getElementById('detect-error');
+      el.style.display = 'block';
+      el.textContent = data.error;
+      return;
+    }
+    detectedCaps = data.capabilities || {};
+    document.getElementById('detect-arch').textContent = `Architecture: ${data.architecture || 'unknown'}`;
+    document.getElementById('detect-params').textContent = data.parameter_count ? `${data.parameter_count} parameters` : '';
+
+    const list = document.getElementById('detect-caps-list');
+    list.innerHTML = '';
+    const capLabels = {
+      vision:'Vision', tool_use:'Tool Use', voice_input:'Voice Input',
+      voice_output:'Voice Output', memory:'Memory', reasoning:'Reasoning', moe:'MoE'
+    };
+    for (const [key, label] of Object.entries(capLabels)) {
+      const has = detectedCaps[key];
+      const span = document.createElement('span');
+      span.className = `cap-check ${has ? 'cap-yes' : 'cap-no'}`;
+      span.textContent = (has ? '✅ ' : '○ ') + label;
+      list.appendChild(span);
+    }
+    if (data.notes && data.notes.length) {
+      document.getElementById('detect-notes').textContent = 'Detection notes: ' + data.notes.join(' · ');
+    }
+    document.getElementById('detect-result').classList.add('visible');
+
+    // Pre-deselect already-present capabilities in step 3
+    Object.entries(detectedCaps).forEach(([k, has]) => {
+      if (has) {
+        const chk = document.getElementById(`chk-${k}`);
+        const card = document.getElementById(`cap-${k}`);
+        if (chk && card) {
+          chk.checked = false;
+          card.classList.remove('selected');
+          card.style.opacity = '0.45';
+          card.title = 'Already present in this model';
+        }
+      }
+    });
+  })
+  .catch(err => {
+    document.getElementById('detect-loading').style.display = 'none';
+    const el = document.getElementById('detect-error');
+    el.style.display = 'block';
+    el.textContent = 'Detection request failed: ' + err.message;
+  });
+}
+
+function toggleCap(key, card) {
+  const chk = document.getElementById(`chk-${key}`);
+  chk.checked = !chk.checked;
+  card.classList.toggle('selected', chk.checked);
+  updateSelectedSummary();
+}
+
+function updateSelectedSummary() {
+  const sel = [...document.querySelectorAll('input[name=enhancements]:checked')]
+    .map(c => c.value);
+  document.getElementById('selected-caps-summary').textContent =
+    sel.length ? sel.join(', ') : 'None';
+}
+
+function updateConfigVisibility() {
+  const sel = [...document.querySelectorAll('input[name=enhancements]:checked')]
+    .map(c => c.value);
+  document.getElementById('knowledge-opts').style.display = sel.includes('knowledge') ? 'block' : 'none';
+  document.getElementById('vision-opts').style.display    = sel.includes('vision')    ? 'block' : 'none';
+  document.getElementById('moe-opts').style.display       = sel.includes('moe')       ? 'block' : 'none';
+}
+
+function buildPayload() {
+  const enhancements = [...document.querySelectorAll('input[name=enhancements]:checked')]
+    .map(c => c.value);
+  const modelIdEl = document.getElementById('model_id');
+  const modelId   = modelIdEl && modelIdEl.value ? parseInt(modelIdEl.value) : null;
+  const cfg = {
+    epochs:          parseInt(document.getElementById('cfg-epochs').value)||2,
+    learning_rate:   parseFloat(document.getElementById('cfg-lr').value)||1e-4,
+    batch_size:      parseInt(document.getElementById('cfg-batch').value)||2,
+    max_seq_len:     parseInt(document.getElementById('cfg-maxlen').value)||512,
+    user_docs:       document.getElementById('cfg-user-docs').value.trim(),
+    hf_dataset:      document.getElementById('cfg-hf-ds').value.trim(),
+    vision_encoder:  document.getElementById('cfg-vision-enc').value.trim(),
+    num_experts:     parseInt(document.getElementById('cfg-experts').value)||4,
+    moe_top_k:       parseInt(document.getElementById('cfg-topk').value)||2,
+  };
+  return {
+    base_model:   document.getElementById('base_model').value.trim(),
+    model_id:     modelId,
+    enhancements: enhancements,
+    config:       cfg,
+  };
+}
+
+function generateScript() {
+  const payload = buildPayload();
+  if (!payload.enhancements.length) { alert('Select at least one enhancement.'); return; }
+  if (!payload.base_model && !payload.model_id) { alert('No model selected.'); return; }
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  document.getElementById('generate-error').style.display = 'none';
+  document.getElementById('script-output').style.display  = 'none';
+
+  fetch('/api/enhance/generate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.textContent = '⚡ Generate Enhancement Script';
+    if (data.error) {
+      const el = document.getElementById('generate-error');
+      el.style.display = 'block'; el.textContent = data.error; return;
+    }
+    generatedScriptPath = data.script_path;
+    document.getElementById('script-path-display').textContent = data.script_path;
+    document.getElementById('run-cmd-path').textContent = data.script_path;
+    document.getElementById('script-content-box').textContent = data.script_content || '';
+    document.getElementById('script-output').style.display = 'block';
+  })
+  .catch(err => {
+    btn.disabled = false; btn.textContent = '⚡ Generate Enhancement Script';
+    const el = document.getElementById('generate-error');
+    el.style.display = 'block'; el.textContent = 'Request failed: ' + err.message;
+  });
+}
+
+function copyScript() {
+  const text = document.getElementById('script-content-box').textContent;
+  navigator.clipboard.writeText(text).then(() => alert('Script copied to clipboard!'));
+}
+
+function runEnhancement() {
+  if (!generatedScriptPath) return;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Starting…';
+
+  const modelId = document.getElementById('model_id').value;
+
+  fetch('/api/enhance/run', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      script_path: generatedScriptPath,
+      model_id: modelId ? parseInt(modelId) : null,
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.textContent = '▶ Run Inside OwnAI (background job)';
+    if (data.error) { alert('Error: ' + data.error); return; }
+    if (data.model_id) {
+      window.location.href = `/models/${data.model_id}/train`;
+    } else {
+      alert('Enhancement job started!');
+    }
+  })
+  .catch(err => {
+    btn.disabled = false; btn.textContent = '▶ Run Inside OwnAI (background job)';
+    alert('Request failed: ' + err.message);
+  });
+}
+</script>
+{% endblock %}
